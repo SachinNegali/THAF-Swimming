@@ -2,7 +2,7 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 
 export interface Trip {
   id: string;
@@ -44,7 +44,7 @@ export function TripCard({ trip, style }: TripCardProps) {
   };
 
   return (
-    <View
+    <Pressable
       style={[
         styles.card,
         {
@@ -130,7 +130,7 @@ export function TripCard({ trip, style }: TripCardProps) {
           Created {formatTime(trip.createdAt)}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

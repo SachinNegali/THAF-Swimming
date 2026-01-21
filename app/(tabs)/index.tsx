@@ -1,14 +1,15 @@
 import { LocationSearchBar } from "@/components/LocationSearchBar";
 import { Trip, TripCard } from "@/components/TripCard";
+import { BottomSheet, Button } from "@/components/ui";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import React, { useRef, useState } from "react";
 import {
-    Animated,
-    FlatList,
-    StyleSheet,
-    Text,
-    View,
+  Animated,
+  FlatList,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 // Mock trip data
@@ -127,6 +128,7 @@ export default function HomeScreen() {
     </View>
   );
 
+  const [isOpen, setIsOpen] = useState(false);
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Animated Header with Search Bars */}
@@ -156,8 +158,8 @@ export default function HomeScreen() {
             style={styles.searchBar}
           />
         </View>
+        <Button textStyle={{color: 'red'}} title="Open Sheet" onPress={() => setIsOpen(true)} />
       </Animated.View>
-
       {/* Trip List */}
       <FlatList
         data={MOCK_TRIPS}
@@ -173,6 +175,19 @@ export default function HomeScreen() {
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       />
+      <View>
+      
+      <BottomSheet
+        visible={isOpen}
+        onClose={() => setIsOpen(false)}
+        snapPoints={["25%", "50%", "90%"]}
+      >
+        <View style={{ padding: 20 }}>
+          <Text>Bottom Sheet Content</Text>
+          <Button title="Close" onPress={() => setIsOpen(false)} />
+        </View>
+      </BottomSheet>
+    </View>
     </View>
   );
 }
