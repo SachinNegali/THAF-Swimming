@@ -11,6 +11,7 @@ import "react-native-reanimated";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { AppProviders } from "@/providers/AppProviders";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -18,21 +19,24 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
-        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-          <BottomSheetModalProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="login" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="modal"
-                options={{ presentation: "modal", title: "Modal" }}
-              />
-              <Stack.Screen name="groupInfo" options={{ headerShown: false }} />
-            </Stack>
-            <StatusBar style="auto" />
-          </BottomSheetModalProvider>
-        </ThemeProvider>
+        <AppProviders>
+          <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+            <BottomSheetModalProvider>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" options={{ headerShown: false }} />
+                <Stack.Screen name="login" options={{ headerShown: false }} />
+                <Stack.Screen name="profile" options={{ headerShown: false }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="modal"
+                  options={{ presentation: "modal", title: "Modal" }}
+                />
+                <Stack.Screen name="groupInfo" options={{ headerShown: false }} />
+              </Stack>
+              <StatusBar style="auto" />
+            </BottomSheetModalProvider>
+          </ThemeProvider>
+        </AppProviders>
       </ErrorBoundary>
     </GestureHandlerRootView>
   );
