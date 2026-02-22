@@ -1,8 +1,10 @@
 /**
  * API Request and Response Types
+ * Aligned with Postman collection (Circles API)
  */
 
-// Pagination
+// ─── Pagination ─────────────────────────────────────────
+
 export interface PaginationParams {
   page?: number;
   limit?: number;
@@ -22,75 +24,92 @@ export interface PaginatedResponse<T> {
   };
 }
 
-// Auth
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
+// ─── Auth ────────────────────────────────────────────────
 
-export interface RegisterRequest {
+export interface SocialLoginRequest {
+  provider: 'google' | 'apple' | 'facebook';
+  socialId: string;
   email: string;
-  password: string;
-  name: string;
-  phoneNumber?: string;
+  fName: string;
+  lName: string;
+  profilePicture?: string;
 }
 
 export interface AuthResponse {
   user: {
-    id: string;
+    _id: string;
+    fName: string;
+    lName: string;
     email: string;
-    name: string;
-    avatar?: string;
-    phoneNumber?: string;
+    socialAccounts?: Array<{
+      provider: string;
+      id: string;
+      _id: string;
+    }>;
+    createdAt: string;
+    updatedAt: string;
   };
-  accessToken: string;
-  refreshToken: string;
+  tokens: {
+    access: {
+      token: string;
+      expires: string;
+    };
+    refresh: {
+      token: string;
+      expires: string;
+    };
+  };
 }
 
 export interface RefreshTokenRequest {
   refreshToken: string;
 }
 
-// Trips
-export interface Location {
-  type: 'point' | 'area' | 'city';
+// ─── Shared Location (GeoJSON) ──────────────────────────
+
+export interface GeoLocation {
+  type: 'Point';
+  coordinates: [number, number]; // [longitude, latitude]
   name: string;
-  coordinates?: {
-    latitude: number;
-    longitude: number;
-  };
-  city?: string;
-  state?: string;
-  country?: string;
+  locationType: 'point' | 'area' | 'city';
 }
+
+// ─── Trips ──────────────────────────────────────────────
 
 export interface Trip {
   id: string;
-  userId: string;
-  from: Location;
-  to: Location;
-  stops?: Location[];
+  title: string;
+  description?: string;
+  creator: string;
+  startLocation: GeoLocation;
+  endLocation: GeoLocation;
+  stops?: GeoLocation[];
+  participants?: string[];
   startDate: string;
   endDate: string;
-  description?: string;
-  maxParticipants?: number;
-  currentParticipants?: number;
   status: 'planned' | 'active' | 'completed' | 'cancelled';
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateTripRequest {
-  from: Location;
-  to: Location;
-  stops?: Location[];
+  title: string;
+  description?: string;
+  startLocation: GeoLocation;
+  endLocation: GeoLocation;
+  stops?: GeoLocation[];
   startDate: string;
   endDate: string;
-  description?: string;
-  maxParticipants?: number;
 }
 
-export interface UpdateTripRequest extends Partial<CreateTripRequest> {
+export interface UpdateTripRequest {
+  title?: string;
+  description?: string;
+  startLocation?: GeoLocation;
+  endLocation?: GeoLocation;
+  stops?: GeoLocation[];
+  startDate?: string;
+  endDate?: string;
   status?: Trip['status'];
 }
 
@@ -101,13 +120,18 @@ export interface TripFilters extends PaginationParams {
   userId?: string;
 }
 
-// Events
+export interface AddParticipantsRequest {
+  userIds: string[];
+}
+
+// ─── Events ─────────────────────────────────────────────
+
 export interface Event {
   id: string;
   title: string;
   description?: string;
-  startLocation: Location;
-  endLocation: Location;
+  startLocation: GeoLocation;
+  endLocation: GeoLocation;
   startDate: string;
   endDate: string;
   maxParticipants?: number;
@@ -121,8 +145,8 @@ export interface Event {
 export interface CreateEventRequest {
   title: string;
   description?: string;
-  startLocation: Location;
-  endLocation: Location;
+  startLocation: GeoLocation;
+  endLocation: GeoLocation;
   startDate: string;
   endDate: string;
   maxParticipants?: number;
@@ -138,10 +162,49 @@ export interface EventFilters extends PaginationParams {
   startDateTo?: string;
 }
 
-// Chats & Messages
+// ─── Groups (Chat) ──────────────────────────────────────
+
+export interface GroupMember {
+  userId: string;
+  role: 'admin' | 'member';
+  joinedAt: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  description?: string;
+  members: GroupMember[];
+  creator: string;
+  lastMessage?: Message;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateGroupRequest {
+  name: string;
+  description?: string;
+  members?: string[];
+}
+
+export interface UpdateGroupRequest {
+  name?: string;
+  description?: string;
+}
+
+export interface AddGroupMembersRequest {
+  userIds: string[];
+}
+
+export interface UpdateMemberRoleRequest {
+  role: 'admin' | 'member';
+}
+
+// ─── Messages ───────────────────────────────────────────
+
 export interface Message {
   id: string;
-  chatId: string;
+  groupId: string;
   senderId: string;
   content: string;
   type: 'text' | 'image' | 'file';
@@ -151,27 +214,8 @@ export interface Message {
   updatedAt: string;
 }
 
-export interface Chat {
-  id: string;
-  name: string;
-  type: 'direct' | 'group';
-  participants: string[];
-  admins: string[];
-  lastMessage?: Message;
-  unreadCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateChatRequest {
-  name?: string;
-  type: 'direct' | 'group';
-  participants: string[];
-}
-
 export interface SendMessageRequest {
   content: string;
-  type: 'text' | 'image' | 'file';
 }
 
 export interface MessageFilters extends PaginationParams {
@@ -179,7 +223,8 @@ export interface MessageFilters extends PaginationParams {
   after?: string;
 }
 
-// Users
+// ─── Users ──────────────────────────────────────────────
+
 export interface User {
   id: string;
   email: string;
@@ -200,4 +245,35 @@ export interface UpdateUserRequest {
 
 export interface UserFilters extends PaginationParams {
   search?: string;
+}
+
+// ─── SSE Event Types ────────────────────────────────────
+
+export type SSEEventType =
+  | 'new_message'
+  | 'message_deleted'
+  | 'message_read'
+  | 'group_updated'
+  | 'member_added'
+  | 'member_removed'
+  | 'member_role_updated'
+  | 'trip_updated'
+  | 'notification';
+
+export interface SSEEvent {
+  type: SSEEventType;
+  data: Record<string, unknown>;
+  timestamp: string;
+}
+
+// ─── Notifications ──────────────────────────────────────
+
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+  isRead: boolean;
+  createdAt: string;
 }

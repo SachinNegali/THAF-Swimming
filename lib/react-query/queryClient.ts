@@ -55,17 +55,19 @@ export const queryKeys = {
   trips: {
     all: ['trips'] as const,
     lists: () => [...queryKeys.trips.all, 'list'] as const,
-    list: (filters?: Record<string, any>) => 
+    list: (filters?: Record<string, unknown>) => 
       [...queryKeys.trips.lists(), filters] as const,
     details: () => [...queryKeys.trips.all, 'detail'] as const,
     detail: (id: string) => [...queryKeys.trips.details(), id] as const,
+    participants: (tripId: string) =>
+      [...queryKeys.trips.detail(tripId), 'participants'] as const,
   },
   
   // Events
   events: {
     all: ['events'] as const,
     lists: () => [...queryKeys.events.all, 'list'] as const,
-    list: (filters?: Record<string, any>) => 
+    list: (filters?: Record<string, unknown>) => 
       [...queryKeys.events.lists(), filters] as const,
     details: () => [...queryKeys.events.all, 'detail'] as const,
     detail: (id: string) => [...queryKeys.events.details(), id] as const,
@@ -73,24 +75,38 @@ export const queryKeys = {
       [...queryKeys.events.detail(eventId), 'participants'] as const,
   },
   
-  // Chats
-  chats: {
-    all: ['chats'] as const,
-    lists: () => [...queryKeys.chats.all, 'list'] as const,
-    list: () => [...queryKeys.chats.lists()] as const,
-    details: () => [...queryKeys.chats.all, 'detail'] as const,
-    detail: (id: string) => [...queryKeys.chats.details(), id] as const,
-    messages: (chatId: string) => 
-      [...queryKeys.chats.detail(chatId), 'messages'] as const,
+  // Groups (Chat)
+  groups: {
+    all: ['groups'] as const,
+    lists: () => [...queryKeys.groups.all, 'list'] as const,
+    list: () => [...queryKeys.groups.lists()] as const,
+    details: () => [...queryKeys.groups.all, 'detail'] as const,
+    detail: (id: string) => [...queryKeys.groups.details(), id] as const,
+    members: (groupId: string) =>
+      [...queryKeys.groups.detail(groupId), 'members'] as const,
+    messages: (groupId: string) =>
+      [...queryKeys.groups.detail(groupId), 'messages'] as const,
+  },
+
+  // Standalone messages
+  messages: {
+    all: ['messages'] as const,
   },
   
   // Users
   users: {
     all: ['users'] as const,
     lists: () => [...queryKeys.users.all, 'list'] as const,
-    list: (filters?: Record<string, any>) => 
+    list: (filters?: Record<string, unknown>) => 
       [...queryKeys.users.lists(), filters] as const,
     details: () => [...queryKeys.users.all, 'detail'] as const,
     detail: (id: string) => [...queryKeys.users.details(), id] as const,
+  },
+
+  // Notifications
+  notifications: {
+    all: ['notifications'] as const,
+    list: () => [...queryKeys.notifications.all, 'list'] as const,
+    unreadCount: () => [...queryKeys.notifications.all, 'unread-count'] as const,
   },
 };

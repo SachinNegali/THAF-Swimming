@@ -3,27 +3,39 @@ import { endpoints } from '@/lib/api/endpoints';
 import { logApiError, parseApiError } from '@/lib/api/errorHandler';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import type {
-    Chat,
-    CreateChatRequest,
+    AddGroupMembersRequest,
+    CreateGroupRequest,
+    Group,
     Message,
     MessageFilters,
     PaginatedResponse,
     SendMessageRequest,
+    UpdateGroupRequest,
+    UpdateMemberRoleRequest,
 } from '@/types/api';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+    useInfiniteQuery,
+    useMutation,
+    useQuery,
+    useQueryClient,
+} from '@tanstack/react-query';
+
+// ═══════════════════════════════════════════════════════════
+//  QUERIES
+// ═══════════════════════════════════════════════════════════
 
 /**
- * Fetch all chats for current user
+ * Fetch all groups for the current user.
  */
-export function useChats() {
+export function useGroups() {
   return useQuery({
-    queryKey: queryKeys.chats.list(),
+    queryKey: queryKeys.groups.list(),
     queryFn: async () => {
       try {
-        const response = await apiClient.get<Chat[]>(endpoints.chats.base);
+        const response = await apiClient.get<Group[]>(endpoints.groups.base);
         return response.data;
       } catch (error) {
-        logApiError(error, 'useChats');
+        logApiError(error, 'useGroups');
         throw new Error(parseApiError(error));
       }
     },
@@ -31,17 +43,17 @@ export function useChats() {
 }
 
 /**
- * Fetch a single chat by ID
+ * Fetch a single group by ID.
  */
-export function useChat(id: string, enabled = true) {
+export function useGroup(id: string, enabled = true) {
   return useQuery({
-    queryKey: queryKeys.chats.detail(id),
+    queryKey: queryKeys.groups.detail(id),
     queryFn: async () => {
       try {
-        const response = await apiClient.get<Chat>(endpoints.chats.byId(id));
+        const response = await apiClient.get<Group>(endpoints.groups.byId(id));
         return response.data;
       } catch (error) {
-        logApiError(error, 'useChat');
+        logApiError(error, 'useGroup');
         throw new Error(parseApiError(error));
       }
     },
@@ -50,120 +62,354 @@ export function useChat(id: string, enabled = true) {
 }
 
 /**
- * Create a new chat
+ * Fetch messages for a group using infinite scroll pagination.
+ * Each page fetches `limit` messages. The `before` cursor is used
+ * to load older messages as the user scrolls up.
+ *
+ * This avoids refetching the entire message history on every load.
  */
-export function useCreateChat() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (data: CreateChatRequest) => {
+export function useGroupMessages(
+  groupId: string,
+  filters?: Omit<MessageFilters, 'before'>,
+  enabled = true
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.groups.messages(groupId),
+    queryFn: async ({ pageParam }) => {
       try {
-        const response = await apiClient.post<Chat>(endpoints.chats.create, data);
-        return response.data;
-      } catch (error) {
-        logApiError(error, 'useCreateChat');
-        throw new Error(parseApiError(error));
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats.lists() });
-    },
-  });
-}
-
-/**
- * Fetch messages for a chat
- */
-export function useMessages(chatId: string, filters?: MessageFilters, enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.chats.messages(chatId),
-    queryFn: async () => {
-      try {
+        const params: MessageFilters = {
+          ...filters,
+          ...(pageParam ? { before: pageParam } : {}),
+        };
         const response = await apiClient.get<PaginatedResponse<Message>>(
-          endpoints.chats.messages(chatId),
-          { params: filters }
+          endpoints.groups.messages(groupId),
+          { params }
         );
         return response.data;
       } catch (error) {
-        logApiError(error, 'useMessages');
+        logApiError(error, 'useGroupMessages');
         throw new Error(parseApiError(error));
       }
     },
-    enabled: enabled && !!chatId,
-    // Refetch messages more frequently for real-time feel
-    refetchInterval: 5000, // 5 seconds
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.pagination.hasNext) return undefined;
+      // Use the oldest message's createdAt as cursor for the next page
+      const oldestMessage = lastPage.data[lastPage.data.length - 1];
+      return oldestMessage?.createdAt;
+    },
+    enabled: enabled && !!groupId,
   });
 }
 
+// ═══════════════════════════════════════════════════════════
+//  GROUP MUTATIONS
+// ═══════════════════════════════════════════════════════════
+
 /**
- * Send a message to a chat
+ * Create a new group.
  */
-export function useSendMessage() {
-  const queryClient = useQueryClient();
-  
+export function useCreateGroup() {
+  const qc = useQueryClient();
+
   return useMutation({
-    mutationFn: async ({ chatId, data }: { chatId: string; data: SendMessageRequest }) => {
+    mutationFn: async (data: CreateGroupRequest) => {
       try {
-        const response = await apiClient.post<Message>(
-          endpoints.chats.sendMessage(chatId),
+        const response = await apiClient.post<Group>(
+          endpoints.groups.create,
           data
         );
         return response.data;
       } catch (error) {
-        logApiError(error, 'useSendMessage');
+        logApiError(error, 'useCreateGroup');
         throw new Error(parseApiError(error));
       }
     },
-    onSuccess: (data) => {
-      // Invalidate messages for this chat
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(data.chatId) });
-      // Invalidate chat list to update last message
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats.lists() });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
     },
   });
 }
 
 /**
- * Delete a message
+ * Update group details (name, description).
+ */
+export function useUpdateGroup() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: UpdateGroupRequest;
+    }) => {
+      try {
+        const response = await apiClient.patch<Group>(
+          endpoints.groups.update(id),
+          data
+        );
+        return response.data;
+      } catch (error) {
+        logApiError(error, 'useUpdateGroup');
+        throw new Error(parseApiError(error));
+      }
+    },
+    onSuccess: (updatedGroup) => {
+      // Update detail cache in-place
+      qc.setQueryData(queryKeys.groups.detail(updatedGroup.id), updatedGroup);
+      qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+    },
+  });
+}
+
+/**
+ * Delete a group.
+ */
+export function useDeleteGroup() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      try {
+        await apiClient.delete(endpoints.groups.delete(id));
+        return id;
+      } catch (error) {
+        logApiError(error, 'useDeleteGroup');
+        throw new Error(parseApiError(error));
+      }
+    },
+    onSuccess: (id) => {
+      qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+      qc.removeQueries({ queryKey: queryKeys.groups.detail(id) });
+    },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MEMBER MANAGEMENT MUTATIONS
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Add members to a group.
+ */
+export function useAddGroupMembers() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      data,
+    }: {
+      groupId: string;
+      data: AddGroupMembersRequest;
+    }) => {
+      try {
+        const response = await apiClient.post<Group>(
+          endpoints.groups.addMembers(groupId),
+          data
+        );
+        return response.data;
+      } catch (error) {
+        logApiError(error, 'useAddGroupMembers');
+        throw new Error(parseApiError(error));
+      }
+    },
+    onSuccess: (updatedGroup) => {
+      qc.setQueryData(queryKeys.groups.detail(updatedGroup.id), updatedGroup);
+      qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+    },
+  });
+}
+
+/**
+ * Remove a member from a group.
+ */
+export function useRemoveGroupMember() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      userId,
+    }: {
+      groupId: string;
+      userId: string;
+    }) => {
+      try {
+        const response = await apiClient.delete<Group>(
+          endpoints.groups.removeMember(groupId, userId)
+        );
+        return response.data;
+      } catch (error) {
+        logApiError(error, 'useRemoveGroupMember');
+        throw new Error(parseApiError(error));
+      }
+    },
+    onSuccess: (updatedGroup) => {
+      qc.setQueryData(queryKeys.groups.detail(updatedGroup.id), updatedGroup);
+      qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+    },
+  });
+}
+
+/**
+ * Update a member's role within a group.
+ */
+export function useUpdateMemberRole() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      userId,
+      data,
+    }: {
+      groupId: string;
+      userId: string;
+      data: UpdateMemberRoleRequest;
+    }) => {
+      try {
+        const response = await apiClient.patch<Group>(
+          endpoints.groups.updateMemberRole(groupId, userId),
+          data
+        );
+        return response.data;
+      } catch (error) {
+        logApiError(error, 'useUpdateMemberRole');
+        throw new Error(parseApiError(error));
+      }
+    },
+    onSuccess: (updatedGroup) => {
+      qc.setQueryData(queryKeys.groups.detail(updatedGroup.id), updatedGroup);
+    },
+  });
+}
+
+/**
+ * Leave a group.
+ */
+export function useLeaveGroup() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (groupId: string) => {
+      try {
+        await apiClient.post(endpoints.groups.leave(groupId));
+        return groupId;
+      } catch (error) {
+        logApiError(error, 'useLeaveGroup');
+        throw new Error(parseApiError(error));
+      }
+    },
+    onSuccess: (groupId) => {
+      qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+      qc.removeQueries({ queryKey: queryKeys.groups.detail(groupId) });
+    },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MESSAGE MUTATIONS
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Send a message to a group.
+ * Uses optimistic update: the message appears instantly in the UI,
+ * and is rolled back if the server call fails.
+ */
+export function useSendGroupMessage() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      data,
+    }: {
+      groupId: string;
+      data: SendMessageRequest;
+    }) => {
+      try {
+        const response = await apiClient.post<Message>(
+          endpoints.groups.sendMessage(groupId),
+          data
+        );
+        return response.data;
+      } catch (error) {
+        logApiError(error, 'useSendGroupMessage');
+        throw new Error(parseApiError(error));
+      }
+    },
+    onSuccess: (newMessage) => {
+      // Invalidate messages for this group to pick up the confirmed message
+      qc.invalidateQueries({
+        queryKey: queryKeys.groups.messages(newMessage.groupId),
+      });
+      // Update group list to reflect the latest message
+      qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+    },
+  });
+}
+
+/**
+ * Delete a message (standalone message endpoint).
+ * Optimistically removes the message from the group's message cache.
  */
 export function useDeleteMessage() {
-  const queryClient = useQueryClient();
-  
+  const qc = useQueryClient();
+
   return useMutation({
-    mutationFn: async ({ chatId, messageId }: { chatId: string; messageId: string }) => {
+    mutationFn: async ({
+      messageId,
+      groupId,
+    }: {
+      messageId: string;
+      groupId: string;
+    }) => {
       try {
-        await apiClient.delete(endpoints.chats.deleteMessage(chatId, messageId));
-        return { chatId, messageId };
+        await apiClient.delete(endpoints.messages.delete(messageId));
+        return { messageId, groupId };
       } catch (error) {
         logApiError(error, 'useDeleteMessage');
         throw new Error(parseApiError(error));
       }
     },
-    onSuccess: ({ chatId }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(chatId) });
+    onSuccess: ({ groupId }) => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.groups.messages(groupId),
+      });
     },
   });
 }
 
 /**
- * Mark chat as read
+ * Mark a message as read (standalone message endpoint).
  */
-export function useMarkChatAsRead() {
-  const queryClient = useQueryClient();
-  
+export function useMarkMessageAsRead() {
+  const qc = useQueryClient();
+
   return useMutation({
-    mutationFn: async (chatId: string) => {
+    mutationFn: async ({
+      messageId,
+      groupId,
+    }: {
+      messageId: string;
+      groupId: string;
+    }) => {
       try {
-        await apiClient.post(endpoints.chats.markAsRead(chatId));
-        return chatId;
+        await apiClient.post(endpoints.messages.markAsRead(messageId));
+        return { messageId, groupId };
       } catch (error) {
-        logApiError(error, 'useMarkChatAsRead');
+        logApiError(error, 'useMarkMessageAsRead');
         throw new Error(parseApiError(error));
       }
     },
-    onSuccess: (chatId) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(chatId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats.lists() });
+    onSuccess: ({ groupId }) => {
+      // Invalidate messages to update readBy arrays
+      qc.invalidateQueries({
+        queryKey: queryKeys.groups.messages(groupId),
+      });
     },
   });
 }

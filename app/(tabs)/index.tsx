@@ -1,15 +1,17 @@
 // import { LocationSearchBar } from "@/components/LocationSearchBar";
+// import { PublicProfileScreen } from "@/components/profile/publicProfile";
 // import { Trip, TripCard } from "@/components/TripCard";
-// import { BottomSheet, Button } from "@/components/ui";
+// import { Button } from "@/components/ui";
+// import { BottomSheetRef, withBottomSheet } from "@/components/ui/BottomSheet2";
 // import { Colors } from "@/constants/theme";
+// import { MOCK_USER } from "@/dummy-data/journeys";
 // import { useColorScheme } from "@/hooks/use-color-scheme";
 // import React, { useRef, useState } from "react";
 // import {
 //   Animated,
-//   FlatList,
 //   StyleSheet,
 //   Text,
-//   View,
+//   View
 // } from "react-native";
 
 // // Mock trip data
@@ -64,43 +66,29 @@
   
 //   const [fromLocation, setFromLocation] = useState("");
 //   const [toLocation, setToLocation] = useState("");
-  
+//   const [isOpen, setIsOpen] = useState(false);
+
+//   // Use native driver for smooth scroll performance
 //   const scrollY = useRef(new Animated.Value(0)).current;
-//   const lastScrollY = useRef(0);
-//   const scrollDirection = useRef<"up" | "down">("down");
-//   const headerTranslateY = useRef(new Animated.Value(0)).current;
+  
+//   // Clamp the scroll value to header height range for smooth hiding
+//   const clampedScrollY = Animated.diffClamp(scrollY, 0, HEADER_HEIGHT);
+  
+//   // Map scroll position to header translation
+//   // 0 offset = 0 translation (visible)
+//   // HEADER_HEIGHT offset = -HEADER_HEIGHT translation (hidden)
+//   const headerTranslateY = clampedScrollY.interpolate({
+//     inputRange: [0, HEADER_HEIGHT],
+//     outputRange: [0, -HEADER_HEIGHT],
+//     extrapolate: 'clamp',
+//   });
 
-//   const handleScroll = Animated.event(
-//     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-//     {
-//       useNativeDriver: false,
-//       listener: (event: any) => {
-//         const currentScrollY = event.nativeEvent.contentOffset.y;
-//         const diff = currentScrollY - lastScrollY.current;
-
-//         // Determine scroll direction
-//         if (diff > 0 && scrollDirection.current !== "up") {
-//           // Scrolling up - hide header
-//           scrollDirection.current = "up";
-//           Animated.timing(headerTranslateY, {
-//             toValue: -HEADER_HEIGHT,
-//             duration: 200,
-//             useNativeDriver: true,
-//           }).start();
-//         } else if (diff < 0 && scrollDirection.current !== "down") {
-//           // Scrolling down - show header
-//           scrollDirection.current = "down";
-//           Animated.timing(headerTranslateY, {
-//             toValue: 0,
-//             duration: 200,
-//             useNativeDriver: true,
-//           }).start();
-//         }
-
-//         lastScrollY.current = currentScrollY;
-//       },
-//     }
-//   );
+//   // Fade out shadow/border as it hides
+//   const headerShadowOpacity = clampedScrollY.interpolate({
+//     inputRange: [0, HEADER_HEIGHT],
+//     outputRange: [0.1, 0],
+//     extrapolate: 'clamp',
+//   });
 
 //   const renderHeader = () => (
 //     <View style={styles.listHeader}>
@@ -128,7 +116,27 @@
 //     </View>
 //   );
 
-//   const [isOpen, setIsOpen] = useState(false);
+
+//   const TripFilters = ({ onApply }: { onApply: () => void }) => (
+//   <View style={{ padding: 20 }}>
+//     <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
+//       Filter Trips
+//     </Text>
+//     {/* Your filter UI */}
+//     <Button title="Apply Filters" onPress={onApply} />
+//   </View>
+// );
+
+// // Create the sheet component
+// const FilterSheet = withBottomSheet(TripFilters, {
+//   snapPoints: ["10%",'25%', '50%', "75%"],
+//   enableBackdrop: true,
+//   onDismiss: () => console.log('Sheet dismissed'),
+// });
+
+
+// const sheetRef = useRef<BottomSheetRef>(null);
+
 //   return (
 //     <View style={[styles.container, { backgroundColor: colors.background }]}>
 //       {/* Animated Header with Search Bars */}
@@ -138,6 +146,8 @@
 //           {
 //             backgroundColor: colors.background,
 //             transform: [{ translateY: headerTranslateY }],
+//             borderBottomColor: colors.border || '#E5E5E5',
+//             shadowOpacity: headerShadowOpacity,
 //           },
 //         ]}
 //       >
@@ -158,10 +168,15 @@
 //             style={styles.searchBar}
 //           />
 //         </View>
-//         <Button textStyle={{color: 'red'}} title="Open Sheet" onPress={() => setIsOpen(true)} />
+//         <Button 
+//           textStyle={{ color: 'red' }} 
+//           title="Open Sheet" 
+//           onPress={() => setIsOpen(true)} 
+//         />
 //       </Animated.View>
+
 //       {/* Trip List */}
-//       <FlatList
+//       <Animated.FlatList
 //         data={MOCK_TRIPS}
 //         renderItem={renderItem}
 //         keyExtractor={(item) => item.id}
@@ -169,25 +184,42 @@
 //         ListEmptyComponent={renderEmpty}
 //         contentContainerStyle={[
 //           styles.listContent,
+//           // Maintain space for the header so first item isn't covered initially
 //           { paddingTop: HEADER_HEIGHT + 20 },
 //         ]}
-//         onScroll={handleScroll}
+//         // Use native driver for smooth 60fps scrolling
+//         onScroll={Animated.event(
+//           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+//           { useNativeDriver: true }
+//         )}
 //         scrollEventThrottle={16}
 //         showsVerticalScrollIndicator={false}
 //       />
-//       <View>
       
-//       <BottomSheet
+//       {/* <BottomSheet
 //         visible={isOpen}
 //         onClose={() => setIsOpen(false)}
-//         snapPoints={["25%", "50%", "90%"]}
+//         snapPoints={["10%", "25%", "50%", "75%", "90%"]} 
 //       >
 //         <View style={{ padding: 20 }}>
 //           <Text>Bottom Sheet Content</Text>
 //           <Button title="Close" onPress={() => setIsOpen(false)} />
 //         </View>
-//       </BottomSheet>
-//     </View>
+//       </BottomSheet> */}
+//       <PublicProfileScreen isOpen={isOpen} setIsOpen={val => setIsOpen(val)} user={MOCK_USER} onNavigate={() => {}} />
+
+//       {/* <Button 
+//         title="Open Filters" 
+//         onPress={() => sheetRef.current?.present()} 
+//       />
+      
+//       <FilterSheet 
+//         ref={sheetRef} 
+//         onApply={() => {
+//           console.log('Applying filters');
+//           sheetRef.current?.dismiss();
+//         }} 
+//       /> */}
 //     </View>
 //   );
 // }
@@ -201,17 +233,21 @@
 //     top: 0,
 //     left: 0,
 //     right: 0,
-//     zIndex: 10,
+//     zIndex: 100,
+//     height: HEADER_HEIGHT + 60, // Add safe area/status bar height
 //     paddingTop: 60,
 //     paddingBottom: 16,
+//     borderBottomWidth: StyleSheet.hairlineWidth,
+//     // Use shadow only on iOS, elevation on Android
 //     shadowColor: "#000",
 //     shadowOffset: {
 //       width: 0,
 //       height: 2,
 //     },
-//     shadowOpacity: 0.1,
 //     shadowRadius: 4,
 //     elevation: 4,
+//     // Ensure content doesn't bleed through
+//     opacity: 1,
 //   },
 //   headerContent: {
 //     paddingHorizontal: 16,
@@ -225,11 +261,12 @@
 //     marginBottom: 12,
 //   },
 //   listContent: {
-//     paddingBottom: 20,
+//     paddingBottom: 40, // Extra padding for bottom sheet
 //   },
 //   listHeader: {
 //     paddingHorizontal: 16,
 //     marginBottom: 16,
+//     marginTop: 8, // Add slight breathing room after header
 //   },
 //   title: {
 //     fontSize: 24,
@@ -255,303 +292,7 @@
 // });
 
 
-//////=================================================================================
-
-import { LocationSearchBar } from "@/components/LocationSearchBar";
-import { PublicProfileScreen } from "@/components/profile/publicProfile";
-import { Trip, TripCard } from "@/components/TripCard";
-import { Button } from "@/components/ui";
-import { BottomSheetRef, withBottomSheet } from "@/components/ui/BottomSheet2";
-import { Colors } from "@/constants/theme";
-import { MOCK_USER } from "@/dummy-data/journeys";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import React, { useRef, useState } from "react";
-import {
-  Animated,
-  StyleSheet,
-  Text,
-  View
-} from "react-native";
-
-// Mock trip data
-const MOCK_TRIPS: Trip[] = [
-  {
-    id: "1",
-    from: "San Francisco, CA",
-    to: "Los Angeles, CA",
-    startDate: "2026-02-15T09:00:00",
-    endDate: "2026-02-17T18:00:00",
-    createdAt: "2026-01-19T10:30:00",
-  },
-  {
-    id: "2",
-    from: "New York, NY",
-    to: "Boston, MA",
-    startDate: "2026-03-01T08:00:00",
-    endDate: "2026-03-03T20:00:00",
-    createdAt: "2026-01-18T14:20:00",
-  },
-  {
-    id: "3",
-    from: "Seattle, WA",
-    to: "Portland, OR",
-    startDate: "2026-02-20T10:00:00",
-    endDate: "2026-02-22T16:00:00",
-    createdAt: "2026-01-17T09:15:00",
-  },
-  {
-    id: "4",
-    from: "Chicago, IL",
-    to: "Detroit, MI",
-    startDate: "2026-03-10T07:00:00",
-    endDate: "2026-03-12T19:00:00",
-    createdAt: "2026-01-16T16:45:00",
-  },
-  {
-    id: "5",
-    from: "Miami, FL",
-    to: "Orlando, FL",
-    startDate: "2026-02-25T11:00:00",
-    endDate: "2026-02-27T17:00:00",
-    createdAt: "2026-01-15T11:00:00",
-  },
-];
-
-const HEADER_HEIGHT = 180;
-
-export default function HomeScreen() {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? "light"];
-  
-  const [fromLocation, setFromLocation] = useState("");
-  const [toLocation, setToLocation] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-
-  // Use native driver for smooth scroll performance
-  const scrollY = useRef(new Animated.Value(0)).current;
-  
-  // Clamp the scroll value to header height range for smooth hiding
-  const clampedScrollY = Animated.diffClamp(scrollY, 0, HEADER_HEIGHT);
-  
-  // Map scroll position to header translation
-  // 0 offset = 0 translation (visible)
-  // HEADER_HEIGHT offset = -HEADER_HEIGHT translation (hidden)
-  const headerTranslateY = clampedScrollY.interpolate({
-    inputRange: [0, HEADER_HEIGHT],
-    outputRange: [0, -HEADER_HEIGHT],
-    extrapolate: 'clamp',
-  });
-
-  // Fade out shadow/border as it hides
-  const headerShadowOpacity = clampedScrollY.interpolate({
-    inputRange: [0, HEADER_HEIGHT],
-    outputRange: [0.1, 0],
-    extrapolate: 'clamp',
-  });
-
-  const renderHeader = () => (
-    <View style={styles.listHeader}>
-      <Text style={[styles.title, { color: colors.text }]}>
-        Your Trips
-      </Text>
-      <Text style={[styles.subtitle, { color: colors.tabIconDefault }]}>
-        {MOCK_TRIPS.length} trips planned
-      </Text>
-    </View>
-  );
-
-  const renderItem = ({ item }: { item: Trip }) => (
-    <TripCard trip={item} />
-  );
-
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={[styles.emptyText, { color: colors.tabIconDefault }]}>
-        No trips found
-      </Text>
-      <Text style={[styles.emptySubtext, { color: colors.tabIconDefault }]}>
-        Start planning your next adventure!
-      </Text>
-    </View>
-  );
-
-
-  const TripFilters = ({ onApply }: { onApply: () => void }) => (
-  <View style={{ padding: 20 }}>
-    <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-      Filter Trips
-    </Text>
-    {/* Your filter UI */}
-    <Button title="Apply Filters" onPress={onApply} />
-  </View>
-);
-
-// Create the sheet component
-const FilterSheet = withBottomSheet(TripFilters, {
-  snapPoints: ["10%",'25%', '50%', "75%"],
-  enableBackdrop: true,
-  onDismiss: () => console.log('Sheet dismissed'),
-});
-
-
-const sheetRef = useRef<BottomSheetRef>(null);
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Animated Header with Search Bars */}
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            backgroundColor: colors.background,
-            transform: [{ translateY: headerTranslateY }],
-            borderBottomColor: colors.border || '#E5E5E5',
-            shadowOpacity: headerShadowOpacity,
-          },
-        ]}
-      >
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Find Your Ride
-          </Text>
-          <LocationSearchBar
-            placeholder="From location"
-            value={fromLocation}
-            onChangeText={setFromLocation}
-            style={styles.searchBar}
-          />
-          <LocationSearchBar
-            placeholder="To location"
-            value={toLocation}
-            onChangeText={setToLocation}
-            style={styles.searchBar}
-          />
-        </View>
-        <Button 
-          textStyle={{ color: 'red' }} 
-          title="Open Sheet" 
-          onPress={() => setIsOpen(true)} 
-        />
-      </Animated.View>
-
-      {/* Trip List */}
-      <Animated.FlatList
-        data={MOCK_TRIPS}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={renderEmpty}
-        contentContainerStyle={[
-          styles.listContent,
-          // Maintain space for the header so first item isn't covered initially
-          { paddingTop: HEADER_HEIGHT + 20 },
-        ]}
-        // Use native driver for smooth 60fps scrolling
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-      />
-      
-      {/* <BottomSheet
-        visible={isOpen}
-        onClose={() => setIsOpen(false)}
-        snapPoints={["10%", "25%", "50%", "75%", "90%"]} 
-      >
-        <View style={{ padding: 20 }}>
-          <Text>Bottom Sheet Content</Text>
-          <Button title="Close" onPress={() => setIsOpen(false)} />
-        </View>
-      </BottomSheet> */}
-      <PublicProfileScreen isOpen={isOpen} setIsOpen={val => setIsOpen(val)} user={MOCK_USER} onNavigate={() => {}} />
-
-      {/* <Button 
-        title="Open Filters" 
-        onPress={() => sheetRef.current?.present()} 
-      />
-      
-      <FilterSheet 
-        ref={sheetRef} 
-        onApply={() => {
-          console.log('Applying filters');
-          sheetRef.current?.dismiss();
-        }} 
-      /> */}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-    height: HEADER_HEIGHT + 60, // Add safe area/status bar height
-    paddingTop: 60,
-    paddingBottom: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    // Use shadow only on iOS, elevation on Android
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowRadius: 4,
-    elevation: 4,
-    // Ensure content doesn't bleed through
-    opacity: 1,
-  },
-  headerContent: {
-    paddingHorizontal: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 16,
-  },
-  searchBar: {
-    marginBottom: 12,
-  },
-  listContent: {
-    paddingBottom: 40, // Extra padding for bottom sheet
-  },
-  listHeader: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    marginTop: 8, // Add slight breathing room after header
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-  },
-});
-
-
-//////=================================================================================
+// //////=================================================================================
 
 
 // import { TripCard } from "@/components/explore/TripCard";
@@ -1057,477 +798,621 @@ const styles = StyleSheet.create({
 
 //================= = == == == = = == = = = = = == =
 
-// import { TripCard } from '@/components/explore/TripCard';
-// import { DATE_OPTIONS, JOURNEYS } from '@/dummy-data/journeys';
-// import React, { useEffect, useRef, useState } from 'react';
-// import {
-//   Animated,
-//   Dimensions,
-//   SafeAreaView,
-//   ScrollView,
-//   StatusBar,
-//   StyleSheet,
-//   Text,
-//   TextInput,
-//   TouchableOpacity,
-//   View
-// } from 'react-native';
+import { TripCard } from '@/components/explore/TripCard';
+import { DATE_OPTIONS, JOURNEYS } from '@/dummy-data/journeys';
+import { useCreateTrip, useTrips } from '@/hooks/api/useTrips';
+import type { CreateTripRequest, Trip } from '@/types/api';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
-// const { width } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-// const App: React.FC = () => {
-//   const [isExpanded, setIsExpanded] = useState(true);
-//   const scrollY = useRef(new Animated.Value(0)).current;
-//   const expansionAnim = useRef(new Animated.Value(1)).current; // 1 = Expanded, 0 = Collapsed
+/**
+ * Map an API Trip to the journey shape TripCard expects.
+ * This lets the existing UI work with real API data.
+ */
+const mapTripToJourney = (trip: Trip) => ({
+  id: trip.id,
+  title: trip.title,
+  featured: false,
+  isRecommended: false,
+  createdDate: new Date(trip.createdAt).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }),
+  departure: {
+    code: trip.startLocation?.name?.substring(0, 3).toUpperCase() ?? '---',
+    location: trip.startLocation?.name ?? 'Unknown',
+    dateTime: new Date(trip.startDate).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }),
+  },
+  arrival: {
+    code: trip.endLocation?.name?.substring(0, 3).toUpperCase() ?? '---',
+    location: trip.endLocation?.name ?? 'Unknown',
+    dateTime: new Date(trip.endDate).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }),
+  },
+  duration: (() => {
+    const ms = new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime();
+    const days = Math.ceil(ms / (1000 * 60 * 60 * 24));
+    return `${days}d`;
+  })(),
+  description: trip.description,
+});
 
-//   useEffect(() => {
-//     Animated.spring(expansionAnim, {
-//       toValue: isExpanded ? 1 : 0,
-//       useNativeDriver: false, // Height and padding don't support native driver
-//       friction: 8,
-//       tension: 40,
-//     }).start();
-//   }, [isExpanded]);
+const App: React.FC = () => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const expansionAnim = useRef(new Animated.Value(1)).current; // 1 = Expanded, 0 = Collapsed
 
-//   const handleScroll = Animated.event(
-//     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-//     {
-//       useNativeDriver: false,
-//       listener: (event: any) => {
-//         const offsetY = event.nativeEvent.contentOffset.y;
-//         if (offsetY > 40 && isExpanded) {
-//           setIsExpanded(false);
-//         } else if (offsetY < 10 && !isExpanded) {
-//           setIsExpanded(true);
-//         }
-//       },
-//     }
-//   );
+  // ─── API hooks ──────────────────────────────────────────
+  const {
+    data: tripsResponse,
+    isLoading,
+    error: tripsError,
+    refetch,
+  } = useTrips();
 
-//   const toggleHeader = () => setIsExpanded(!isExpanded);
+  const createTripMutation = useCreateTrip();
 
-//   // Animated styles
-//   const headerHeight = expansionAnim.interpolate({
-//     inputRange: [0, 1],
-//     outputRange: [70, 320],
-//   });
+  /**
+   * Use API trips when available, fall back to dummy JOURNEYS.
+   * API trips are mapped to the journey format TripCard expects.
+   */
+  const journeys = tripsResponse?.data
+    ? tripsResponse.data.map(mapTripToJourney)
+    : JOURNEYS;
 
-//   const contentOpacity = expansionAnim.interpolate({
-//     inputRange: [0.3, 1],
-//     outputRange: [0, 1],
-//   });
+  /**
+   * Create a new trip via the API.
+   * Call this from your "Create Trip" UI flow.
+   */
+  const handleCreateTrip = useCallback(
+    (tripData: CreateTripRequest) => {
+      createTripMutation.mutate(tripData, {
+        onSuccess: (newTrip) => {
+          Alert.alert('Trip Created', `"${newTrip.title}" has been created!`);
+        },
+        onError: (err) => {
+          Alert.alert('Error', err.message || 'Failed to create trip');
+        },
+      });
+    },
+    [createTripMutation]
+  );
 
-//   const summaryOpacity = expansionAnim.interpolate({
-//     inputRange: [0, 0.7],
-//     outputRange: [1, 0],
-//   });
+  useEffect(() => {
+    Animated.spring(expansionAnim, {
+      toValue: isExpanded ? 1 : 0,
+      useNativeDriver: false, // Height and padding don't support native driver
+      friction: 8,
+      tension: 40,
+    }).start();
+  }, [isExpanded]);
 
-//   return (
-//     <SafeAreaView style={styles.container}>
-//       <StatusBar barStyle="dark-content" />
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    {
+      useNativeDriver: false,
+      listener: (event: any) => {
+        const offsetY = event.nativeEvent.contentOffset.y;
+        if (offsetY > 40 && isExpanded) {
+          setIsExpanded(false);
+        } else if (offsetY < 10 && !isExpanded) {
+          setIsExpanded(true);
+        }
+      },
+    }
+  );
+
+  const toggleHeader = () => setIsExpanded(!isExpanded);
+
+  // Animated styles
+  const headerHeight = expansionAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [70, 320],
+  });
+
+  const contentOpacity = expansionAnim.interpolate({
+    inputRange: [0.3, 1],
+    outputRange: [0, 1],
+  });
+
+  const summaryOpacity = expansionAnim.interpolate({
+    inputRange: [0, 0.7],
+    outputRange: [1, 0],
+  });
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       
-//       <Animated.View style={[styles.header, { height: headerHeight }]}>
-//         <View style={styles.topBar}>
-//           <TouchableOpacity style={styles.roundButton}>
-//             <Text style={styles.buttonText}>IC</Text>
-//           </TouchableOpacity>
+      <Animated.View style={[styles.header, { height: headerHeight }]}>
+        <View style={styles.topBar}>
+          <TouchableOpacity style={styles.roundButton}>
+            <Text style={styles.buttonText}>IC</Text>
+          </TouchableOpacity>
           
-//           <TouchableOpacity 
-//             onPress={toggleHeader} 
-//             activeOpacity={1}
-//             style={styles.headerTitleContainer}
-//           >
-//             <Animated.View style={[styles.titleAbsolute, { opacity: summaryOpacity }]}>
-//               <Text style={styles.collapsedTitle}>SF to LA</Text>
-//               <Text style={styles.collapsedSub}>Oct 20 - Oct 25</Text>
-//             </Animated.View>
+          <TouchableOpacity 
+            onPress={toggleHeader} 
+            activeOpacity={1}
+            style={styles.headerTitleContainer}
+          >
+            <Animated.View style={[styles.titleAbsolute, { opacity: summaryOpacity }]}>
+              <Text style={styles.collapsedTitle}>SF to LA</Text>
+              <Text style={styles.collapsedSub}>Oct 20 - Oct 25</Text>
+            </Animated.View>
             
-//             <Animated.View style={{ opacity: contentOpacity }}>
-//               <Text style={styles.expandedTitle}>Search Journeys</Text>
-//             </Animated.View>
-//           </TouchableOpacity>
+            <Animated.View style={{ opacity: contentOpacity }}>
+              <Text style={styles.expandedTitle}>Search Journeys</Text>
+            </Animated.View>
+          </TouchableOpacity>
 
-//           <TouchableOpacity style={styles.roundButton}>
-//             <Text style={styles.buttonText}>IC</Text>
-//           </TouchableOpacity>
-//         </View>
+          <TouchableOpacity style={styles.roundButton}>
+            <Text style={styles.buttonText}>IC</Text>
+          </TouchableOpacity>
+        </View>
 
-//         <Animated.View style={[styles.expandedContent, { opacity: contentOpacity }]}>
-//           <View style={styles.inputGroup}>
-//             <View style={styles.inputWrapper}>
-//               <Text style={styles.inputLabel}>FROM</Text>
-//               <View style={styles.inputInner}>
-//                 <Text style={styles.inputIcon}>IC</Text>
-//                 <TextInput 
-//                   style={styles.textInput} 
-//                   placeholder="San Francisco" 
-//                   placeholderTextColor="#94a3b8"
-//                 />
-//               </View>
-//             </View>
+        <Animated.View style={[styles.expandedContent, { opacity: contentOpacity }]}>
+          <View style={styles.inputGroup}>
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputLabel}>FROM</Text>
+              <View style={styles.inputInner}>
+                <Text style={styles.inputIcon}>IC</Text>
+                <TextInput 
+                  style={styles.textInput} 
+                  placeholder="San Francisco" 
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+            </View>
 
-//             <View style={styles.swapButtonWrapper}>
-//               <TouchableOpacity style={styles.swapButton}>
-//                 <Text style={styles.swapIcon}>IC</Text>
-//               </TouchableOpacity>
-//             </View>
+            <View style={styles.swapButtonWrapper}>
+              <TouchableOpacity style={styles.swapButton}>
+                <Text style={styles.swapIcon}>IC</Text>
+              </TouchableOpacity>
+            </View>
 
-//             <View style={styles.inputWrapper}>
-//               <Text style={styles.inputLabel}>TO</Text>
-//               <View style={styles.inputInner}>
-//                 <Text style={styles.inputIcon}>IC</Text>
-//                 <TextInput 
-//                   style={styles.textInput} 
-//                   placeholder="Los Angeles" 
-//                   placeholderTextColor="#94a3b8"
-//                 />
-//               </View>
-//             </View>
-//           </View>
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputLabel}>TO</Text>
+              <View style={styles.inputInner}>
+                <Text style={styles.inputIcon}>IC</Text>
+                <TextInput 
+                  style={styles.textInput} 
+                  placeholder="Los Angeles" 
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+            </View>
+          </View>
 
-//           <View style={styles.dateRow}>
-//             <TouchableOpacity style={styles.dateInput}>
-//               <Text style={styles.labelMicro}>DEPARTURE</Text>
-//               <View style={styles.dateValueRow}>
-//                 <Text style={styles.dateValue}>Oct 20, 2024</Text>
-//                 <Text style={styles.inputIconSmall}>IC</Text>
-//               </View>
-//             </TouchableOpacity>
-//             <TouchableOpacity style={styles.dateInput}>
-//               <Text style={styles.labelMicro}>RETURN</Text>
-//               <View style={styles.dateValueRow}>
-//                 <Text style={styles.dateValue}>Oct 25, 2024</Text>
-//                 <Text style={styles.inputIconSmall}>IC</Text>
-//               </View>
-//             </TouchableOpacity>
-//           </View>
-//         </Animated.View>
+          <View style={styles.dateRow}>
+            <TouchableOpacity style={styles.dateInput}>
+              <Text style={styles.labelMicro}>DEPARTURE</Text>
+              <View style={styles.dateValueRow}>
+                <Text style={styles.dateValue}>Oct 20, 2024</Text>
+                <Text style={styles.inputIconSmall}>IC</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.dateInput}>
+              <Text style={styles.labelMicro}>RETURN</Text>
+              <View style={styles.dateValueRow}>
+                <Text style={styles.dateValue}>Oct 25, 2024</Text>
+                <Text style={styles.inputIconSmall}>IC</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
 
-//         <View style={styles.pillsContainer}>
-//           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsScroll}>
-//             {DATE_OPTIONS.map((opt) => (
-//               <TouchableOpacity 
-//                 key={opt.id} 
-//                 style={[styles.pill, opt.isActive && styles.pillActive]}
-//               >
-//                 {opt.id === '1' && <Text style={[styles.pillText, opt.isActive && styles.pillTextActive, {marginRight: 4}]}>IC</Text>}
-//                 <Text style={[styles.pillText, opt.isActive && styles.pillTextActive]}>{opt.label}</Text>
-//               </TouchableOpacity>
-//             ))}
-//           </ScrollView>
-//         </View>
+        <View style={styles.pillsContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsScroll}>
+            {DATE_OPTIONS.map((opt) => (
+              <TouchableOpacity 
+                key={opt.id} 
+                style={[styles.pill, opt.isActive && styles.pillActive]}
+              >
+                {opt.id === '1' && <Text style={[styles.pillText, opt.isActive && styles.pillTextActive, {marginRight: 4}]}>IC</Text>}
+                <Text style={[styles.pillText, opt.isActive && styles.pillTextActive]}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
-//         <TouchableOpacity onPress={toggleHeader} style={styles.handleArea}>
-//           <View style={styles.handle} />
-//           <Animated.Text style={[styles.chevron, { transform: [{ rotate: expansionAnim.interpolate({ inputRange: [0,1], outputRange: ['0deg', '180deg'] }) }] }]}>IC</Animated.Text>
-//         </TouchableOpacity>
-//       </Animated.View>
+        <TouchableOpacity onPress={toggleHeader} style={styles.handleArea}>
+          <View style={styles.handle} />
+          <Animated.Text style={[styles.chevron, { transform: [{ rotate: expansionAnim.interpolate({ inputRange: [0,1], outputRange: ['0deg', '180deg'] }) }] }]}>IC</Animated.Text>
+        </TouchableOpacity>
+      </Animated.View>
 
-//       <ScrollView 
-//         onScroll={handleScroll}
-//         scrollEventThrottle={16}
-//         style={styles.scrollBody}
-//         contentContainerStyle={styles.scrollContent}
-//       >
-//         <View style={styles.listHeader}>
-//           <Text style={styles.sectionTitle}>Available Journeys</Text>
-//           <View style={styles.resultsBadge}>
-//             <Text style={styles.resultsText}>{JOURNEYS.length} RESULTS</Text>
-//           </View>
-//         </View>
+      <ScrollView 
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        style={styles.scrollBody}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.listHeader}>
+          <Text style={styles.sectionTitle}>Available Journeys</Text>
+          <View style={styles.resultsBadge}>
+            <Text style={styles.resultsText}>
+              {isLoading ? '...' : `${journeys.length} RESULTS`}
+            </Text>
+          </View>
+        </View>
 
-//         {JOURNEYS.map((journey) => (
-//           <TripCard key={journey.id} journey={journey} />
-//         ))}
+        {/* Loading state */}
+        {isLoading && (
+          <View style={styles.centeredContainer}>
+            <ActivityIndicator size="large" color="#0f172a" />
+            <Text style={styles.loadingText}>Loading trips...</Text>
+          </View>
+        )}
+
+        {/* Error state with retry */}
+        {tripsError && !isLoading && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>
+              Failed to load trips. Showing saved journeys.
+            </Text>
+            <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Trip cards — API data or fallback dummy data */}
+        {!isLoading &&
+          journeys.map((journey) => (
+            <TripCard key={journey.id} journey={journey} />
+          ))}
         
-//         <View style={{ height: 100 }} />
-//       </ScrollView>
+        <View style={{ height: 100 }} />
+      </ScrollView>
 
-//       {/* <View style={styles.navBar}>
-//         <NavItem label="Explore" icon="IC" />
-//         <NavItem label="Search" icon="IC" active />
-//         <NavItem label="Saved" icon="IC" />
-//         <NavItem label="Profile" icon="IC" />
-//       </View> */}
-//     </SafeAreaView>
-//   );
-// };
+      {/* <View style={styles.navBar}>
+        <NavItem label="Explore" icon="IC" />
+        <NavItem label="Search" icon="IC" active />
+        <NavItem label="Saved" icon="IC" />
+        <NavItem label="Profile" icon="IC" />
+      </View> */}
+    </SafeAreaView>
+  );
+};
 
-// const NavItem: React.FC<{ label: string, icon: string, active?: boolean }> = ({ label, icon, active }) => (
-//   <TouchableOpacity style={styles.navItem}>
-//     <Text style={[styles.navIcon, active && styles.navActive]}>{icon}</Text>
-//     <Text style={[styles.navLabel, active && styles.navActive]}>{label}</Text>
-//   </TouchableOpacity>
-// );
+const NavItem: React.FC<{ label: string, icon: string, active?: boolean }> = ({ label, icon, active }) => (
+  <TouchableOpacity style={styles.navItem}>
+    <Text style={[styles.navIcon, active && styles.navActive]}>{icon}</Text>
+    <Text style={[styles.navLabel, active && styles.navActive]}>{label}</Text>
+  </TouchableOpacity>
+);
 
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     backgroundColor: '#f8fafc',
-//   },
-//   header: {
-//     backgroundColor: '#fff',
-//     borderBottomWidth: 1,
-//     borderBottomColor: '#e2e8f0',
-//     zIndex: 100,
-//     overflow: 'hidden',
-//   },
-//   topBar: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//     paddingHorizontal: 16,
-//     paddingTop: 8,
-//     height: 60,
-//   },
-//   roundButton: {
-//     width: 40,
-//     height: 40,
-//     borderRadius: 20,
-//     backgroundColor: '#f1f5f9',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//   },
-//   buttonText: {
-//     fontWeight: '800',
-//     color: '#1e293b',
-//   },
-//   headerTitleContainer: {
-//     flex: 1,
-//     alignItems: 'center',
-//     height: 40,
-//     justifyContent: 'center',
-//   },
-//   titleAbsolute: {
-//     position: 'absolute',
-//     alignItems: 'center',
-//   },
-//   collapsedTitle: {
-//     fontSize: 14,
-//     fontWeight: '800',
-//     color: '#0f172a',
-//   },
-//   collapsedSub: {
-//     fontSize: 10,
-//     fontWeight: '700',
-//     color: '#94a3b8',
-//     textTransform: 'uppercase',
-//   },
-//   expandedTitle: {
-//     fontSize: 16,
-//     fontWeight: '800',
-//     color: '#0f172a',
-//   },
-//   expandedContent: {
-//     paddingHorizontal: 16,
-//     marginTop: 12,
-//   },
-//   inputGroup: {
-//     gap: 8,
-//     position: 'relative',
-//   },
-//   inputWrapper: {
-//     backgroundColor: '#f8fafc',
-//     borderRadius: 16,
-//     borderWidth: 1,
-//     borderColor: '#e2e8f0',
-//     padding: 12,
-//   },
-//   inputLabel: {
-//     fontSize: 8,
-//     fontWeight: '800',
-//     color: '#94a3b8',
-//     marginBottom: 4,
-//   },
-//   inputInner: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     gap: 12,
-//   },
-//   inputIcon: {
-//     fontSize: 16,
-//     fontWeight: 'bold',
-//     color: '#cbd5e1',
-//   },
-//   textInput: {
-//     flex: 1,
-//     fontSize: 14,
-//     fontWeight: '700',
-//     color: '#0f172a',
-//     padding: 0,
-//     outlineStyle: 'none',
-//   } as any,
-//   swapButtonWrapper: {
-//     position: 'absolute',
-//     right: 20,
-//     top: '50%',
-//     marginTop: -20,
-//     zIndex: 10,
-//   },
-//   swapButton: {
-//     width: 32,
-//     height: 32,
-//     borderRadius: 16,
-//     backgroundColor: '#fff',
-//     borderWidth: 1,
-//     borderColor: '#e2e8f0',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     shadowColor: '#000',
-//     shadowOffset: { width: 0, height: 2 },
-//     shadowOpacity: 0.1,
-//     shadowRadius: 4,
-//   },
-//   swapIcon: {
-//     fontSize: 10,
-//     fontWeight: 'bold',
-//     color: '#64748b',
-//   },
-//   dateRow: {
-//     flexDirection: 'row',
-//     gap: 8,
-//     marginTop: 12,
-//   },
-//   dateInput: {
-//     flex: 1,
-//     backgroundColor: '#f8fafc',
-//     borderRadius: 16,
-//     borderWidth: 1,
-//     borderColor: '#e2e8f0',
-//     padding: 12,
-//   },
-//   dateValueRow: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//     marginTop: 2,
-//   },
-//   dateValue: {
-//     fontSize: 12,
-//     fontWeight: '700',
-//     color: '#0f172a',
-//   },
-//   inputIconSmall: {
-//     fontSize: 12,
-//     fontWeight: 'bold',
-//     color: '#cbd5e1',
-//   },
-//   labelMicro: {
-//     fontSize: 8,
-//     fontWeight: '800',
-//     color: '#94a3b8',
-//     letterSpacing: 1,
-//   },
-//   pillsContainer: {
-//     marginTop: 16,
-//     paddingBottom: 4,
-//   },
-//   pillsScroll: {
-//     paddingHorizontal: 16,
-//     gap: 8,
-//   },
-//   pill: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     paddingHorizontal: 16,
-//     paddingVertical: 8,
-//     borderRadius: 20,
-//     backgroundColor: '#fff',
-//     borderWidth: 1,
-//     borderColor: '#e2e8f0',
-//   },
-//   pillActive: {
-//     backgroundColor: '#000',
-//     borderColor: '#000',
-//   },
-//   pillText: {
-//     fontSize: 12,
-//     fontWeight: '700',
-//     color: '#475569',
-//   },
-//   pillTextActive: {
-//     color: '#fff',
-//   },
-//   handleArea: {
-//     alignItems: 'center',
-//     paddingVertical: 8,
-//   },
-//   handle: {
-//     width: 40,
-//     height: 4,
-//     backgroundColor: '#e2e8f0',
-//     borderRadius: 2,
-//     marginBottom: 2,
-//   },
-//   chevron: {
-//     fontSize: 10,
-//     fontWeight: '900',
-//     color: '#cbd5e1',
-//   },
-//   scrollBody: {
-//     flex: 1,
-//   },
-//   scrollContent: {
-//     paddingHorizontal: 16,
-//     paddingTop: 12,
-//   },
-//   listHeader: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//     marginBottom: 20,
-//     marginTop: 8,
-//   },
-//   sectionTitle: {
-//     fontSize: 18,
-//     fontWeight: '800',
-//     color: '#0f172a',
-//   },
-//   resultsBadge: {
-//     backgroundColor: '#f1f5f9',
-//     paddingHorizontal: 10,
-//     paddingVertical: 4,
-//     borderRadius: 20,
-//   },
-//   resultsText: {
-//     fontSize: 9,
-//     fontWeight: '800',
-//     color: '#64748b',
-//   },
-//   navBar: {
-//     position: 'absolute',
-//     bottom: 0,
-//     left: 0,
-//     right: 0,
-//     height: 80,
-//     backgroundColor: 'rgba(255,255,255,0.9)',
-//     borderTopWidth: 1,
-//     borderTopColor: '#f1f5f9',
-//     flexDirection: 'row',
-//     justifyContent: 'space-around',
-//     paddingTop: 12,
-//     paddingHorizontal: 20,
-//     maxWidth: 600,
-//     alignSelf: 'center',
-//     width: '100%',
-//   },
-//   navItem: {
-//     alignItems: 'center',
-//     gap: 4,
-//   },
-//   navIcon: {
-//     fontSize: 18,
-//     fontWeight: 'bold',
-//     color: '#cbd5e1',
-//   },
-//   navLabel: {
-//     fontSize: 10,
-//     fontWeight: '700',
-//     color: '#cbd5e1',
-//   },
-//   navActive: {
-//     color: '#000',
-//   },
-// });
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  header: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    zIndex: 100,
+    overflow: 'hidden',
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    height: 60,
+  },
+  roundButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonText: {
+    fontWeight: '800',
+    color: '#1e293b',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+  },
+  titleAbsolute: {
+    position: 'absolute',
+    alignItems: 'center',
+  },
+  collapsedTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  collapsedSub: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+  },
+  expandedTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  expandedContent: {
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
+  inputGroup: {
+    gap: 8,
+    position: 'relative',
+  },
+  inputWrapper: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 12,
+  },
+  inputLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#94a3b8',
+    marginBottom: 4,
+  },
+  inputInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  inputIcon: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#cbd5e1',
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+    padding: 0,
+    outlineStyle: 'none',
+  } as any,
+  swapButtonWrapper: {
+    position: 'absolute',
+    right: 20,
+    top: '50%',
+    marginTop: -20,
+    zIndex: 10,
+  },
+  swapButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  swapIcon: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#64748b',
+  },
+  dateRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  dateInput: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 12,
+  },
+  dateValueRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  dateValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  inputIconSmall: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#cbd5e1',
+  },
+  labelMicro: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#94a3b8',
+    letterSpacing: 1,
+  },
+  pillsContainer: {
+    marginTop: 16,
+    paddingBottom: 4,
+  },
+  pillsScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  pillActive: {
+    backgroundColor: '#000',
+    borderColor: '#000',
+  },
+  pillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  pillTextActive: {
+    color: '#fff',
+  },
+  handleArea: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 2,
+    marginBottom: 2,
+  },
+  chevron: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#cbd5e1',
+  },
+  scrollBody: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  resultsBadge: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  resultsText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#64748b',
+  },
+  navBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    maxWidth: 600,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  navItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  navIcon: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#cbd5e1',
+  },
+  navLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#cbd5e1',
+  },
+  navActive: {
+    color: '#000',
+  },
+  centeredContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#991b1b',
+  },
+  retryButton: {
+    marginLeft: 12,
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  retryText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+});
 
-// export default App;
+export default App;
