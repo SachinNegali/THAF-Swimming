@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useThemeColor } from '../../hooks/use-theme-color';
 import { User, ViewState } from '../../types/app';

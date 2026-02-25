@@ -17,7 +17,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
  */
 export function useEvents(filters?: EventFilters) {
   return useQuery({
-    queryKey: queryKeys.events.list(filters),
+    queryKey: queryKeys.events.list(filters as Record<string, unknown>),
     queryFn: async () => {
       try {
         const response = await apiClient.get<PaginatedResponse<Event>>(
@@ -83,7 +83,7 @@ export function useUpdateEvent() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: UpdateEventRequest }) => {
       try {
-        const response = await apiClient.put<Event>(
+        const response = await apiClient.patch<Event>(
           endpoints.events.update(id),
           data
         );

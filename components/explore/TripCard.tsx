@@ -333,7 +333,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
         <View style={styles.buttonContainer}>
           {/* <TouchableOpacity style={styles.primaryButton} onPress={() => router.navigate('/profile')}> */}
             {/* <TouchableOpacity style={styles.primaryButton} onPress={() => router.navigate('/editProfile')}> */}
-                <TouchableOpacity style={styles.primaryButton} onPress={() => router.navigate('/settingsScreen')}>
+                <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/tripDetails')}>
             
             <Text style={styles.primaryButtonText}>View Details</Text>
           </TouchableOpacity>
@@ -346,7 +346,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
   }
 
   return (
-    <TouchableOpacity activeOpacity={0.7} style={styles.card}>
+    <TouchableOpacity activeOpacity={0.7} style={styles.card} onPress={() => router.push('/tripDetails')}>
       <View style={styles.cardHeader}>
         <Text style={styles.title}>{journey?.title}</Text>
         <Text style={styles.labelSmall}>{journey?.createdDate}</Text>

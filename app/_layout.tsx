@@ -32,6 +32,7 @@ export default function RootLayout() {
                   options={{ presentation: "modal", title: "Modal" }}
                 />
                 <Stack.Screen name="groupInfo" options={{ headerShown: false }} />
+                <Stack.Screen name="tripDetails" options={{ headerShown: false, presentation: 'modal' }}/>
               </Stack>
               <StatusBar style="auto" />
             </BottomSheetModalProvider>

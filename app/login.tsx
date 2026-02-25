@@ -1,10 +1,9 @@
 import { Colors } from "@/constants/theme";
+import { useSocialLogin } from "@/hooks/api/useAuth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
-import * as Google from "expo-auth-session/providers/google";
 import { useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,62 +13,33 @@ import {
   View,
 } from "react-native";
 
-WebBrowser.maybeCompleteAuthSession();
-
 export default function LoginScreen() {
   const colorScheme = useColorScheme();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const socialLogin = useSocialLogin();
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
-    iosClientId: "YOUR_IOS_CLIENT_ID.apps.googleusercontent.com",
-  });
-
-  useEffect(() => {
-    if (response?.type === "success") {
-      handleSuccessfulLogin(response.authentication);
-    } else if (response?.type === "error") {
-      handleLoginError();
-    }
-  }, [response]);
-
-  const handleSuccessfulLogin = async (authentication: any) => {
-    try {
-      setLoading(true);
-      // Store the token or user info as needed
-      console.log("Auth token:", authentication?.accessToken);
-
-      // Navigate to tabs after successful login
-      setTimeout(() => {
-        router.replace("/(tabs)");
-        setLoading(false);
-      }, 500);
-    } catch (error) {
-      console.error("Login error:", error);
-      handleLoginError();
-    }
-  };
-
-  const handleLoginError = () => {
-    setLoading(false);
-    Alert.alert(
-      "Login Failed",
-      "Unable to sign in with Google. Please try again.",
-      [{ text: "OK" }]
+  const handleGoogleLogin = () => {
+    socialLogin.mutate(
+      {
+        provider: 'google',
+        socialId: '1234567892',
+        email: 'testmobile@app.com',
+        fName: 'Mobile user',
+        lName: 'LnameM',
+      },
+      {
+        onSuccess: () => {
+          router.replace("/(tabs)");
+        },
+        onError: (error) => {
+          Alert.alert(
+            "Login Failed",
+            error.message || "Unable to sign in. Please try again.",
+            [{ text: "OK" }]
+          );
+        },
+      }
     );
-  };
-
-  const handleGoogleLogin = async () => {
-    // try {
-    //   setLoading(true);
-    //   await promptAsync();
-    // } catch (error) {
-    //   console.error("Error initiating login:", error);
-    //   handleLoginError();
-    // }
-
-    router.replace("/(tabs)");
   };
 
   return (
@@ -110,7 +80,7 @@ export default function LoginScreen() {
 
         {/* Login Button */}
         <View style={styles.buttonContainer}>
-          {loading ? (
+          {socialLogin.isPending ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator
                 size="large"
@@ -131,11 +101,10 @@ export default function LoginScreen() {
                 styles.googleButton,
                 {
                   backgroundColor: Colors[colorScheme ?? "light"].tint,
-                  opacity: !request ? 0.5 : 1,
                 },
               ]}
               onPress={handleGoogleLogin}
-              disabled={!request || loading}
+              disabled={socialLogin.isPending}
               activeOpacity={0.8}
             >
               <Ionicons name="logo-google" size={24} color="#fff" />

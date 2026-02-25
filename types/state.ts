@@ -4,11 +4,19 @@
  */
 
 export interface User {
-  id: string;
+  _id: string;
+  fName: string;
+  lName: string;
   email: string;
-  name: string;
   avatar?: string;
   phoneNumber?: string;
+  socialAccounts?: Array<{
+    provider: string;
+    id: string;
+    _id: string;
+  }>;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AuthState {
