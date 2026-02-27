@@ -5,6 +5,7 @@ import { setCredentials } from '@/store/slices/authSlice';
 import { QueryClientProvider } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
 import { Provider as ReduxProvider } from 'react-redux';
+import { NotificationProvider } from './NotificationProvider';
 import { RealtimeProvider } from './RealtimeProvider';
 
 interface AppProvidersProps {
@@ -13,7 +14,7 @@ interface AppProvidersProps {
 
 /**
  * Centralized provider wrapper for the entire app.
- * Order matters: Redux → React Query → Other providers.
+ * Order matters: Redux → React Query → Notifications → Realtime.
  *
  * On mount, hydrates tokens from SecureStore into memory + Redux
  * so the axios interceptor has the access token ready from the start.
@@ -54,10 +55,13 @@ export function AppProviders({ children }: AppProvidersProps) {
   return (
     <ReduxProvider store={store}>
       <QueryClientProvider client={queryClient}>
-        <RealtimeProvider>
-          {children}
-        </RealtimeProvider>
+        <NotificationProvider>
+          <RealtimeProvider>
+            {children}
+          </RealtimeProvider>
+        </NotificationProvider>
       </QueryClientProvider>
     </ReduxProvider>
   );
 }
+
