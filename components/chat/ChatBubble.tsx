@@ -44,7 +44,7 @@ const ChatBubble = memo(({ item }: ChatBubbleProps) => {
         <Text style={[styles.senderName, { color: secondaryTextColor }]}>
           {item.senderName}
         </Text>
-        <View style={[styles.theirBubble, { backgroundColor }]}>
+        <View style={[styles.theirBubble, { backgroundColor: '#fff' }]}>
           {item.type === 'image' ? (
             <Image source={{ uri: item.imageUrl }} style={styles.chatImage} />
           ) : (
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     marginBottom: SPACING.md,
-    maxWidth: '80%',
+    maxWidth: '75%',
   },
   avatar: {
     width: 32,
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     alignItems: 'flex-end',
     marginBottom: SPACING.md,
-    maxWidth: '80%',
+    maxWidth: '75%',
   },
   myBubble: {
     borderRadius: 8,

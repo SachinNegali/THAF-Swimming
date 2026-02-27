@@ -5,6 +5,7 @@ import { setCredentials } from '@/store/slices/authSlice';
 import { QueryClientProvider } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
 import { Provider as ReduxProvider } from 'react-redux';
+import { RealtimeProvider } from './RealtimeProvider';
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -53,7 +54,9 @@ export function AppProviders({ children }: AppProvidersProps) {
   return (
     <ReduxProvider store={store}>
       <QueryClientProvider client={queryClient}>
-        {children}
+        <RealtimeProvider>
+          {children}
+        </RealtimeProvider>
       </QueryClientProvider>
     </ReduxProvider>
   );
