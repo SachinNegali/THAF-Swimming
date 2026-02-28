@@ -251,14 +251,25 @@ export interface UserFilters extends PaginationParams {
 // ─── SSE Event Types ────────────────────────────────────
 
 export type SSEEventType =
-  | 'new_message'
-  | 'message_deleted'
-  | 'message_read'
-  | 'group_updated'
-  | 'member_added'
-  | 'member_removed'
-  | 'member_role_updated'
+  // SSE stream control events
+  | 'connected'
+  | 'heartbeat'
+  // Message events
+  | 'message.new'
+  | 'message.deleted'
+  | 'message.delivered'
+  | 'message.read'
+  // Group events
+  | 'group.invite'
+  | 'group.member_removed'
+  | 'group.member_left'
+  | 'group.role_updated'
+  | 'group.updated'
+  | 'group.deleted'
+  | 'group.member_added'
+  // Trip events
   | 'trip_updated'
+  // Generic notification
   | 'notification';
 
 export interface SSEEvent {

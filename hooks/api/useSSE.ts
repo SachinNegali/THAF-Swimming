@@ -13,11 +13,13 @@ type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'polling';
 const INITIAL_RETRY_DELAY = 1000;
 const MAX_RETRY_DELAY = 30000;
 const MAX_SSE_RETRIES = 5;
+const POLL_INTERVAL = 5000;
 
 /**
  * SSE hook for real-time event streaming with long-polling fallback.
  *
- * **Primary**: EventSource (SSE) via `GET /sse/stream`
+ * **Primary**: XMLHttpRequest-based SSE via `GET /sse/stream`
+ *   (React Native has no native EventSource; XHR streaming works everywhere)
  * **Fallback**: Long polling via `GET /sse/poll` (activated after SSE failures)
  *
  * Automatically invalidates the relevant React Query caches
@@ -28,11 +30,12 @@ export function useSSE(enabled = true) {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<SSEEvent | null>(null);
 
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPollingRef = useRef(false);
+  const processedLengthRef = useRef(0);
 
   /**
    * Handle an incoming SSE event and invalidate the appropriate caches.
@@ -46,9 +49,10 @@ export function useSSE(enabled = true) {
       const tripId = data.tripId as string | undefined;
 
       switch (type) {
-        case 'new_message':
-        case 'message_deleted':
-        case 'message_read':
+        case 'message.new':
+        case 'message.deleted':
+        case 'message.delivered':
+        case 'message.read':
           if (groupId) {
             qc.invalidateQueries({
               queryKey: queryKeys.groups.messages(groupId),
@@ -58,10 +62,13 @@ export function useSSE(enabled = true) {
           }
           break;
 
-        case 'group_updated':
-        case 'member_added':
-        case 'member_removed':
-        case 'member_role_updated':
+        case 'group.updated':
+        case 'group.invite':
+        case 'group.member_added':
+        case 'group.member_removed':
+        case 'group.member_left':
+        case 'group.role_updated':
+        case 'group.deleted':
           if (groupId) {
             qc.invalidateQueries({
               queryKey: queryKeys.groups.detail(groupId),
@@ -92,7 +99,68 @@ export function useSSE(enabled = true) {
     [qc]
   );
 
-  // ─── SSE stream connection ─────────────────────────────
+  // ─── Parse SSE text stream ────────────────────────────
+
+  /**
+   * Parse raw SSE text into individual events.
+   * SSE format:
+   *   event: <type>
+   *   data: <json>
+   *   \n
+   */
+  const parseSSEChunk = useCallback(
+    (rawText: string) => {
+      // Split by double-newline to get individual event blocks
+      const blocks = rawText.split(/\n\n/);
+      for (const block of blocks) {
+        if (!block.trim()) continue;
+
+        const lines = block.split('\n');
+        let eventType = '';
+        let dataStr = '';
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            eventType = line.slice(6).trim();
+          } else if (line.startsWith('data:')) {
+            dataStr = line.slice(5).trim();
+          }
+        }
+
+        // Skip heartbeats and connection confirmations without data
+        if (!dataStr) continue;
+
+        try {
+          const parsedData = JSON.parse(dataStr);
+
+          // Skip heartbeat events (they only carry a timestamp)
+          if (eventType === 'heartbeat') continue;
+
+          // For 'connected' events, just log and continue
+          if (eventType === 'connected') {
+            console.log('[SSE] Connected:', parsedData);
+            continue;
+          }
+
+          // Build the SSEEvent from the stream
+          const sseEvent: SSEEvent = {
+            type: (eventType || parsedData.type) as SSEEvent['type'],
+            data: parsedData.data ?? parsedData,
+            timestamp: parsedData.timestamp ?? new Date().toISOString(),
+          };
+
+          if (sseEvent.type) {
+            handleEvent(sseEvent);
+          }
+        } catch {
+          // Ignore unparseable chunks (partial data, etc.)
+        }
+      }
+    },
+    [handleEvent]
+  );
+
+  // ─── XHR-based SSE stream connection ──────────────────
 
   const connectSSE = useCallback(() => {
     if (!enabled) return;
@@ -104,46 +172,82 @@ export function useSSE(enabled = true) {
     }
 
     // Close existing connection
-    eventSourceRef.current?.close();
+    if (xhrRef.current) {
+      xhrRef.current.abort();
+      xhrRef.current = null;
+    }
 
     setStatus('connecting');
+    processedLengthRef.current = 0;
 
-    // Build the SSE URL with auth token as query param
-    // (EventSource doesn't support custom headers)
-    const sseUrl = `${API_BASE_URL}${endpoints.sse.stream}?token=${encodeURIComponent(token)}`;
+    const sseUrl = `${API_BASE_URL}${endpoints.sse.stream}`;
 
     try {
-      const es = new EventSource(sseUrl);
-      eventSourceRef.current = es;
+      const xhr = new XMLHttpRequest();
+      xhrRef.current = xhr;
 
-      es.onopen = () => {
-        setStatus('connected');
-        retryCountRef.current = 0; // Reset retries on successful connect
-      };
+      xhr.open('GET', sseUrl, true);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Accept', 'text/event-stream');
+      xhr.setRequestHeader('Cache-Control', 'no-cache');
+      // Skip ngrok browser interstitial page
+      xhr.setRequestHeader('ngrok-skip-browser-warning', '1');
 
-      es.onmessage = (rawEvent) => {
-        try {
-          const parsed: SSEEvent = JSON.parse(rawEvent.data);
-          handleEvent(parsed);
-        } catch {
-          // Ignore unparseable events (e.g. heartbeat pings)
+      xhr.onreadystatechange = () => {
+        // readyState 3 = LOADING (streaming data arriving)
+        if (xhr.readyState === XMLHttpRequest.LOADING || xhr.readyState === XMLHttpRequest.DONE) {
+          const responseText = xhr.responseText;
+          if (responseText.length > processedLengthRef.current) {
+            const newData = responseText.slice(processedLengthRef.current);
+            processedLengthRef.current = responseText.length;
+
+            // We're receiving data → we're connected
+            if (status !== 'connected') {
+              setStatus('connected');
+              retryCountRef.current = 0;
+            }
+
+            parseSSEChunk(newData);
+          }
+        }
+
+        // readyState 4 = DONE (connection closed)
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+          xhrRef.current = null;
+          setStatus('disconnected');
+
+          retryCountRef.current += 1;
+
+          if (retryCountRef.current > MAX_SSE_RETRIES) {
+            console.log('[SSE] Max retries exceeded, falling back to polling');
+            startPolling();
+            return;
+          }
+
+          // Exponential backoff retry
+          const delay = Math.min(
+            INITIAL_RETRY_DELAY * 2 ** (retryCountRef.current - 1),
+            MAX_RETRY_DELAY
+          );
+
+          console.log(`[SSE] Connection closed, retrying in ${delay}ms (attempt ${retryCountRef.current}/${MAX_SSE_RETRIES})`);
+          retryTimeoutRef.current = setTimeout(connectSSE, delay);
         }
       };
 
-      es.onerror = () => {
-        es.close();
-        eventSourceRef.current = null;
+      xhr.onerror = () => {
+        console.warn('[SSE] XHR error');
+        xhrRef.current = null;
         setStatus('disconnected');
 
         retryCountRef.current += 1;
 
         if (retryCountRef.current > MAX_SSE_RETRIES) {
-          // Exceeded SSE retries → fall back to long polling
+          console.log('[SSE] Max retries exceeded, falling back to polling');
           startPolling();
           return;
         }
 
-        // Exponential backoff retry
         const delay = Math.min(
           INITIAL_RETRY_DELAY * 2 ** (retryCountRef.current - 1),
           MAX_RETRY_DELAY
@@ -151,22 +255,30 @@ export function useSSE(enabled = true) {
 
         retryTimeoutRef.current = setTimeout(connectSSE, delay);
       };
-    } catch {
-      // EventSource constructor can throw in some environments
+
+      xhr.send();
+    } catch (err) {
+      console.warn('[SSE] Failed to create XHR:', err);
       startPolling();
     }
-  }, [enabled, handleEvent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, handleEvent, parseSSEChunk]);
 
   // ─── Long-polling fallback ─────────────────────────────
 
   const poll = useCallback(async () => {
     try {
-      const response = await apiClient.get<SSEEvent[]>(endpoints.sse.poll);
-      const events = response.data;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          handleEvent(event);
-        }
+      const response = await apiClient.get(endpoints.sse.poll);
+      const responseData = response.data;
+
+      // Backend returns { notifications: [...], timestamp }
+      // Each notification is an SSE-like event
+      const events: SSEEvent[] = Array.isArray(responseData)
+        ? responseData
+        : responseData?.notifications ?? [];
+
+      for (const event of events) {
+        handleEvent(event);
       }
     } catch (error) {
       logApiError(error, 'useSSE:poll');
@@ -178,9 +290,11 @@ export function useSSE(enabled = true) {
     isPollingRef.current = true;
     setStatus('polling');
 
+    console.log('[SSE] Starting long-polling fallback');
+
     // Poll immediately, then every 5 seconds
     poll();
-    pollIntervalRef.current = setInterval(poll, 5000);
+    pollIntervalRef.current = setInterval(poll, POLL_INTERVAL);
   }, [poll]);
 
   const stopPolling = useCallback(() => {
@@ -200,8 +314,10 @@ export function useSSE(enabled = true) {
 
     return () => {
       // Cleanup on unmount or when disabled
-      eventSourceRef.current?.close();
-      eventSourceRef.current = null;
+      if (xhrRef.current) {
+        xhrRef.current.abort();
+        xhrRef.current = null;
+      }
 
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);

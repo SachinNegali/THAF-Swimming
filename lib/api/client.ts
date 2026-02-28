@@ -20,6 +20,7 @@ export const apiClient = axios.create({
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': '1',
   },
 });
 
@@ -45,7 +46,6 @@ const processQueue = (error: unknown, token: string | null) => {
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = TokenManager.getAccessToken();
-    console.log("seee....", API_BASE_URL)
 
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;

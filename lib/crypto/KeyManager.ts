@@ -10,18 +10,18 @@
  */
 
 import type {
-    KeyPair,
-    LocalKeyStore,
-    OneTimePreKey,
-    SignedPreKey,
-    UploadKeyBundleRequest,
+  KeyPair,
+  LocalKeyStore,
+  OneTimePreKey,
+  SignedPreKey,
+  UploadKeyBundleRequest,
 } from '@/types/e2ee';
 import { E2EEError, E2EEErrorCode } from '@/types/e2ee';
 import * as SecureStore from 'expo-secure-store';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const SECURE_STORE_KEY = '@thaf/e2ee/keystore';
+const SECURE_STORE_KEY = 'thaf.e2ee.keystore';
 const PRE_KEY_BATCH_SIZE = 100;
 const PRE_KEY_REPLENISH_THRESHOLD = 25;
 const SIGNED_PRE_KEY_ROTATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -33,10 +33,19 @@ let _sodium: typeof import('libsodium-wrappers-sumo') | null = null;
 async function getSodium() {
   if (_sodium) return _sodium;
 
-  const sodium = await import('libsodium-wrappers-sumo');
-  await sodium.ready;
-  _sodium = sodium;
-  return sodium;
+  try {
+    const sodium = await import('libsodium-wrappers-sumo');
+    await sodium.ready;
+    _sodium = sodium;
+    return sodium;
+  } catch (err) {
+    // Hermes (React Native) doesn't support WebAssembly, which libsodium requires.
+    // Throw a clear error so callers can degrade gracefully.
+    throw new E2EEError(
+      E2EEErrorCode.SODIUM_NOT_READY,
+      `libsodium unavailable in this environment (WebAssembly not supported): ${err}`
+    );
+  }
 }
 
 // ─── UUID Helper ─────────────────────────────────────────────────────────────

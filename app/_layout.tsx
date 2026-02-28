@@ -1,3 +1,6 @@
+// Must be first — polyfills crypto.getRandomValues for Hermes/RN
+import '@/lib/crypto/polyfill';
+
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import {
   DarkTheme,
