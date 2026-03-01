@@ -6,7 +6,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
 import { Provider as ReduxProvider } from 'react-redux';
 import { NotificationProvider } from './NotificationProvider';
-import { RealtimeProvider } from './RealtimeProvider';
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -56,9 +55,9 @@ export function AppProviders({ children }: AppProvidersProps) {
     <ReduxProvider store={store}>
       <QueryClientProvider client={queryClient}>
         <NotificationProvider>
-          <RealtimeProvider>
+          {/* <RealtimeProvider> */}
             {children}
-          </RealtimeProvider>
+          {/* </RealtimeProvider> */}
         </NotificationProvider>
       </QueryClientProvider>
     </ReduxProvider>

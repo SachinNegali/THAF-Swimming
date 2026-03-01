@@ -9,13 +9,13 @@ export interface NotificationItem {
 }
 
 interface NotificationState {
-  expoPushToken: string | null;
+  fcmToken: string | null;
   permissionStatus: 'undetermined' | 'granted' | 'denied';
   notifications: NotificationItem[];
 }
 
 const initialState: NotificationState = {
-  expoPushToken: null,
+  fcmToken: null,
   permissionStatus: 'undetermined',
   notifications: [],
 };
@@ -24,8 +24,8 @@ const notificationSlice = createSlice({
   name: 'notification',
   initialState,
   reducers: {
-    setExpoPushToken: (state, action: PayloadAction<string>) => {
-      state.expoPushToken = action.payload;
+    setFcmToken: (state, action: PayloadAction<string>) => {
+      state.fcmToken = action.payload;
     },
 
     setPermissionStatus: (
@@ -50,7 +50,7 @@ const notificationSlice = createSlice({
 });
 
 export const {
-  setExpoPushToken,
+  setFcmToken,
   setPermissionStatus,
   addNotification,
   clearNotifications,

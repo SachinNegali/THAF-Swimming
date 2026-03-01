@@ -9,7 +9,7 @@ interface RegisterDevicePayload {
 }
 
 /**
- * Registers the device's Expo push token with the backend.
+ * Registers the device's FCM push token with the backend.
  * Should be called once after obtaining a push token and
  * confirming the user is authenticated.
  */
@@ -20,6 +20,7 @@ export function useDeviceRegistration() {
         token,
         platform: Platform.OS as 'ios' | 'android',
       };
+      console.log('Registering device with payload:', payload);
       const { data } = await apiClient.post(
         endpoints.devices.register,
         payload

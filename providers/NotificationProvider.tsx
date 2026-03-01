@@ -7,7 +7,7 @@ import {
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
     addNotification,
-    setExpoPushToken,
+    setFcmToken,
     setPermissionStatus,
 } from '@/store/slices/notificationSlice';
 import * as Notifications from 'expo-notifications';
@@ -59,13 +59,13 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       if (cancelled) return;
 
       if (token) {
-        dispatch(setExpoPushToken(token));
+        dispatch(setFcmToken(token));
         dispatch(setPermissionStatus('granted'));
 
-        // Send token to the backend
+        // Send FCM token to the backend
         registerDevice(token);
 
-        console.log('Expo push token:', token);
+        console.log('FCM Token:', token);
       } else {
         dispatch(setPermissionStatus('denied'));
       }

@@ -60,14 +60,13 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     return null;
   }
 
-  // Get the Expo push token
+  // Get the native FCM device push token (for Firebase Admin SDK)
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: '41d9cc4b-4f7c-4f37-b122-b383dfdea2dd',
-    });
-    return tokenData.data;
+    const tokenData = await Notifications.getDevicePushTokenAsync();
+    console.log('FCM Token:', tokenData.data);
+    return tokenData.data as string;
   } catch (error) {
-    console.error('Failed to get Expo push token:', error);
+    console.error('Failed to get FCM device token:', error);
     return null;
   }
 }
