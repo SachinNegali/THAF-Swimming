@@ -1,7 +1,7 @@
 import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Location from 'expo-location';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +16,8 @@ import {
   View
 } from 'react-native';
 import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+
+import { MapFAB, QuickActionsSheet, RidersBottomSheet } from '../../components/ride';
 
 const { width, height } = Dimensions.get('window');
 
@@ -154,6 +156,14 @@ export default function BuddyMapExpo() {
   const [routeDuration, setRouteDuration] = useState<string>('');
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [trafficSegments, setTrafficSegments] = useState<TrafficSegment[]>([]);
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
+  const [isRidersOpen, setIsRidersOpen] = useState(false);
+
+  // Quick actions sheet ref
+  // const quickActionsRef = useRef<QuickActionsSheetRef>(null);
+
+  // Mock ride ID for QR code
+  const RIDE_ID = useMemo(() => 'THAF-RIDE-' + Math.random().toString(36).substring(2, 8).toUpperCase(), []);
 
   // Initialize location
   useEffect(() => {
@@ -1048,73 +1058,35 @@ export default function BuddyMapExpo() {
         </TouchableOpacity>
       </View>
 
-      {/* ─── Buddies List (hidden during navigation) ─── */}
-      {/* {!isNavigating && (
-        <View style={styles.buddiesContainer}>
-          <Text style={styles.buddiesTitle}>Buddies ({buddies.length})</Text>
-          <FlatList
-            horizontal
-            data={buddies}
-            keyExtractor={item => item.id}
-            showsHorizontalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <TouchableOpacity 
-                style={[
-                  styles.buddyCard,
-                  selectedBuddy?.id === item.id && styles.buddyCardSelected
-                ]}
-                onPress={() => navigateToBuddy(item)}
-              >
-                <Image source={{ uri: item.avatar }} style={styles.buddyCardAvatar} />
-                <Text style={styles.buddyCardName}>{item.name}</Text>
-                <Text style={styles.buddyCardDistance}>
-                  {getDistance(
-                    location.latitude,
-                    location.longitude,
-                    item.latitude,
-                    item.longitude
-                  )} km
-                </Text>
-                <View style={styles.batteryIndicator}>
-                  <Ionicons 
-                    name={item.battery > 20 ? "battery-half" : "battery-dead"} 
-                    size={12} 
-                    color={item.battery > 20 ? "#4CAF50" : "#FF5252"} 
-                  />
-                  <Text style={styles.batteryText}>{item.battery}%</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-      )} */}
-
-      {/* ─── Selected Buddy Info Panel ─── */}
-      {selectedBuddy && !isNavigating && !destination && (
-        <View style={styles.selectedBuddyInfo}>
-          <View style={styles.selectedBuddyHeader}>
-            <Image source={{ uri: selectedBuddy.avatar }} style={styles.selectedBuddyAvatar} />
-            <View style={styles.selectedBuddyDetails}>
-              <Text style={styles.selectedBuddyName}>{selectedBuddy.name}</Text>
-              <Text style={styles.selectedBuddyStatus}>
-                {selectedBuddy.status} • {selectedBuddy.lastSeen}
-              </Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.navigateToBuddyBtn}
-              onPress={() => navigateToBuddy(selectedBuddy)}
-            >
-              <Text style={styles.navigateToBuddyText}>Go</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.closeBuddyBtn}
-              onPress={() => setSelectedBuddy(null)}
-            >
-              <MaterialIcons name="close" size={20} color="#666" />
-            </TouchableOpacity>
-          </View>
-        </View>
+      {/* ─── FAB: Opens Quick Actions ─── */}
+      {!isNavigating && (
+        // <MapFAB onPress={() => quickActionsRef.current?.open()} />
+        <MapFAB onPress={() => setIsRidersOpen(true)} onPressActions={() => setIsQuickActionsOpen(true)}/>
       )}
+
+      {/* ─── Quick Actions Sheet ─── */}
+      {/* <QuickActionsSheet ref={quickActionsRef} /> */}
+      <QuickActionsSheet isOpen={isQuickActionsOpen} setIsOpen={() => setIsQuickActionsOpen(false)} />
+
+      {/* ─── Riders Bottom Sheet ─── */}
+      {/* <RidersBottomSheet
+        buddies={buddies}
+        selectedBuddy={selectedBuddy}
+        userLocation={location}
+        getDistance={getDistance}
+        onBuddyPress={navigateToBuddy}
+        rideId={RIDE_ID}
+      /> */}
+      <RidersBottomSheet
+        buddies={buddies}
+        selectedBuddy={selectedBuddy}
+        userLocation={location}
+        getDistance={getDistance}
+        onBuddyPress={navigateToBuddy}
+        rideId={RIDE_ID}
+        isOpen={isRidersOpen}
+        setIsOpen={() => setIsRidersOpen(false)}
+      />
     </View>
   );
 }
@@ -1264,7 +1236,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 25,
     paddingHorizontal: 15,
-    paddingVertical: 12,
+    // paddingVertical: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -1451,115 +1423,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-  },
-  // ─── Buddies List ─────────────────────────────────────────────────
-  buddiesContainer: {
-    position: 'absolute',
-    bottom: 100,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-  },
-  buddiesTitle: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
-    marginBottom: 10,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  buddyCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 12,
-    marginRight: 12,
-    alignItems: 'center',
-    minWidth: 90,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  buddyCardSelected: {
-    borderWidth: 2,
-    borderColor: '#2196F3',
-  },
-  buddyCardAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginBottom: 6,
-  },
-  buddyCardName: {
-    fontWeight: 'bold',
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  buddyCardDistance: {
-    color: '#666',
-    fontSize: 11,
-    marginBottom: 4,
-  },
-  batteryIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  batteryText: {
-    fontSize: 10,
-    color: '#666',
-    marginLeft: 2,
-  },
-  // ─── Selected Buddy Info ──────────────────────────────────────────
-  selectedBuddyInfo: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
-  },
-  selectedBuddyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  selectedBuddyAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-  },
-  selectedBuddyDetails: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  selectedBuddyName: {
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  selectedBuddyStatus: {
-    color: '#666',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  navigateToBuddyBtn: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  navigateToBuddyText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  closeBuddyBtn: {
-    padding: 4,
   },
 });
