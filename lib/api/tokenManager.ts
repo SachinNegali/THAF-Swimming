@@ -1,60 +1,32 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 /**
- * Try to use expo-secure-store (encrypted, hardware-backed).
- * Falls back to AsyncStorage when the native module is absent
- * (e.g. running inside Expo Go where SecureStore isn't linked).
- */
-let SecureStore: typeof import('expo-secure-store') | null = null;
-try {
-  SecureStore = require('expo-secure-store');
-} catch {
-  // Native module unavailable — will use AsyncStorage instead.
-  console.warn(
-    'expo-secure-store native module not found — falling back to AsyncStorage.',
-  );
-}
-
-/**
- * TokenManager — in-memory + secure storage for auth tokens.
+ * TokenManager — in-memory + SecureStore for auth tokens.
  *
- * Design rationale:
- * - Tokens are kept **in memory** so the axios interceptor can read them
- *   synchronously without hitting async storage on every request.
- * - On login / refresh, tokens are **persisted** to SecureStore (or
- *   AsyncStorage as fallback) so they survive app restarts. On app
- *   launch, `loadTokens()` hydrates the in-memory cache.
- * - On logout, both in-memory and persisted tokens are cleared.
+ * SECURITY DECISIONS:
+ * -────────────────────────────────────────────────────────
+ * 1. Tokens are stored EXCLUSIVELY in expo-secure-store (hardware-backed
+ *    encrypted storage). We NEVER fall back to AsyncStorage for tokens
+ *    because AsyncStorage stores data in plaintext on disk, making tokens
+ *    trivially extractable on rooted/jailbroken devices.
+ *
+ * 2. Tokens are kept IN MEMORY so the axios interceptor can read them
+ *    synchronously without hitting async storage on every request.
+ *
+ * 3. On login/refresh, tokens are PERSISTED to SecureStore so they
+ *    survive app restarts. On app launch, `loadTokens()` hydrates the
+ *    in-memory cache.
+ *
+ * 4. On logout, both in-memory and persisted tokens are cleared.
+ *
+ * 5. Tokens are NEVER logged to console — even in __DEV__ mode.
+ * -────────────────────────────────────────────────────────
  */
+
+import * as SecureStore from 'expo-secure-store';
 
 const KEYS = {
   ACCESS_TOKEN: 'auth_access_token',
   REFRESH_TOKEN: 'auth_refresh_token',
 } as const;
-
-// ─── Storage helpers (SecureStore → AsyncStorage fallback) ──
-async function setItem(key: string, value: string): Promise<void> {
-  if (SecureStore) {
-    await SecureStore.setItemAsync(key, value);
-  } else {
-    await AsyncStorage.setItem(key, value);
-  }
-}
-
-async function getItem(key: string): Promise<string | null> {
-  if (SecureStore) {
-    return SecureStore.getItemAsync(key);
-  }
-  return AsyncStorage.getItem(key);
-}
-
-async function deleteItem(key: string): Promise<void> {
-  if (SecureStore) {
-    await SecureStore.deleteItemAsync(key);
-  } else {
-    await AsyncStorage.removeItem(key);
-  }
-}
 
 // ─── In-memory cache ────────────────────────────────────
 let _accessToken: string | null = null;
@@ -62,34 +34,45 @@ let _refreshToken: string | null = null;
 
 export const TokenManager = {
   // ── Getters (synchronous — used by interceptors) ──────
-  getAccessToken: () => _accessToken,
-  getRefreshToken: () => _refreshToken,
+  getAccessToken: (): string | null => _accessToken,
+  getRefreshToken: (): string | null => _refreshToken,
 
-  // ── Set & persist ─────────────────────────────────────
-  setTokens: async (accessToken: string, refreshToken: string) => {
+  /**
+   * Set & persist both tokens.
+   *
+   * SECURITY: Stores in SecureStore (hardware-backed encryption).
+   * If SecureStore fails, the error propagates — we fail secure,
+   * never fall back to insecure storage.
+   */
+  setTokens: async (accessToken: string, refreshToken: string): Promise<void> => {
     _accessToken = accessToken;
     _refreshToken = refreshToken;
 
     await Promise.all([
-      setItem(KEYS.ACCESS_TOKEN, accessToken),
-      setItem(KEYS.REFRESH_TOKEN, refreshToken),
+      SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, accessToken),
+      SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, refreshToken),
     ]);
   },
 
-  // ── Update only the access token (after a silent refresh) ─
-  setAccessToken: async (accessToken: string) => {
+  /**
+   * Update only the access token (e.g. after a silent refresh).
+   */
+  setAccessToken: async (accessToken: string): Promise<void> => {
     _accessToken = accessToken;
-    await setItem(KEYS.ACCESS_TOKEN, accessToken);
+    await SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, accessToken);
   },
 
-  // ── Load from storage into memory (call on app launch) ─
+  /**
+   * Load tokens from SecureStore into memory.
+   * Call once on app launch to hydrate the in-memory cache.
+   */
   loadTokens: async (): Promise<{
     accessToken: string | null;
     refreshToken: string | null;
   }> => {
     const [accessToken, refreshToken] = await Promise.all([
-      getItem(KEYS.ACCESS_TOKEN),
-      getItem(KEYS.REFRESH_TOKEN),
+      SecureStore.getItemAsync(KEYS.ACCESS_TOKEN),
+      SecureStore.getItemAsync(KEYS.REFRESH_TOKEN),
     ]);
 
     _accessToken = accessToken;
@@ -98,14 +81,17 @@ export const TokenManager = {
     return { accessToken, refreshToken };
   },
 
-  // ── Clear everything (on logout) ──────────────────────
-  clearTokens: async () => {
+  /**
+   * Clear all tokens from memory and SecureStore.
+   * Called on logout.
+   */
+  clearTokens: async (): Promise<void> => {
     _accessToken = null;
     _refreshToken = null;
 
     await Promise.all([
-      deleteItem(KEYS.ACCESS_TOKEN),
-      deleteItem(KEYS.REFRESH_TOKEN),
+      SecureStore.deleteItemAsync(KEYS.ACCESS_TOKEN),
+      SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN),
     ]);
   },
 };

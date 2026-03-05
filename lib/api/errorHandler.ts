@@ -5,6 +5,7 @@ import { ApiError } from './client';
  * Parse API error into user-friendly message
  */
 export function parseApiError(error: unknown): string {
+  console.log("ERROR IN API CLIENT.... WHYYY", error?.message, error?.response, {...error});
   if (error instanceof AxiosError) {
     const apiError = error.response?.data as ApiError | undefined;
     
@@ -58,6 +59,7 @@ export function parseApiError(error: unknown): string {
  */
 export function logApiError(error: unknown, context?: string): void {
   if (__DEV__) {
+    console.log("ERROR IN API CLIENT....", error.message. error.response);
     console.error(`[API Error${context ? ` - ${context}` : ''}]:`, error);
   }
   

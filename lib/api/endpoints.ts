@@ -10,8 +10,13 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://abd1-152
 export const endpoints = {
   // ─── Auth ──────────────────────────────────────────────
   auth: {
+    /** @deprecated Use auth.google instead */
     socialLogin: '/auth/social-login',
+    /** idToken-based Google auth — backend verifies the token server-side */
+    google: '/auth/google',
     refreshTokens: '/auth/refresh-tokens',
+    /** Backend invalidates the refresh token */
+    logout: '/auth/logout',
   },
 
   // ─── Trips ─────────────────────────────────────────────

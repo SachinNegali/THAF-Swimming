@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "982168719366",
+    "project_id": "thaf-93b06",
+    "storage_bucket": "thaf-93b06.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:982168719366:android:acf985e1abbfafb192b387",
+        "android_client_info": {
+          "package_name": "com.thafapp.thaf"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "982168719366-m9peofj227tor1idf4ssnml0867p66dh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVRV0kYxENg635ucB3w2qcthI5-Z0JlgE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "982168719366-m9peofj227tor1idf4ssnml0867p66dh.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

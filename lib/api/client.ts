@@ -45,7 +45,7 @@ const processQueue = (error: unknown, token: string | null) => {
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = TokenManager.getAccessToken();
-    console.log("seee....", API_BASE_URL)
+    console.log("TOKEN....", token);
 
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -65,7 +65,9 @@ apiClient.interceptors.response.use(
     };
 
     // Only attempt refresh on 401 and if we haven't retried yet
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    const isAuthRequest = originalRequest.url?.includes('/auth/');
+    console.log("ERROR IN API CLIENT....", originalRequest?.url);
+    if (error.response?.status !== 401 || originalRequest._retry || isAuthRequest) {
       return Promise.reject(error);
     }
 
