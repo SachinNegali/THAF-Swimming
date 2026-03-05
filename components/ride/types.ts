@@ -1,5 +1,6 @@
 export interface Buddy {
   id: string;
+  numericId?: number;  // uint32 from binary protocol
   name: string;
   latitude: number;
   longitude: number;
@@ -7,6 +8,8 @@ export interface Buddy {
   status: string;
   battery: number;
   lastSeen: string;
+  speed?: number;      // km/h from tracking
+  bearing?: number;    // degrees from tracking
 }
 
 export type QuickActionPriority = 'emergency' | 'medium' | 'regular';
