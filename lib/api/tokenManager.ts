@@ -45,6 +45,10 @@ export const TokenManager = {
    * never fall back to insecure storage.
    */
   setTokens: async (accessToken: string, refreshToken: string): Promise<void> => {
+    console.log('[TokenManager] Setting tokens in memory...', {
+      access: accessToken.slice(0, 10) + '...',
+      refresh: refreshToken.slice(0, 10) + '...',
+    });
     _accessToken = accessToken;
     _refreshToken = refreshToken;
 
@@ -58,6 +62,7 @@ export const TokenManager = {
    * Update only the access token (e.g. after a silent refresh).
    */
   setAccessToken: async (accessToken: string): Promise<void> => {
+    console.log('[TokenManager] Updating access token only...', accessToken.slice(0, 10) + '...');
     _accessToken = accessToken;
     await SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, accessToken);
   },
@@ -75,6 +80,14 @@ export const TokenManager = {
       SecureStore.getItemAsync(KEYS.REFRESH_TOKEN),
     ]);
 
+    if (accessToken) {
+      console.log('[TokenManager] Loaded tokens from SecureStore', {
+        access: accessToken.slice(0, 10) + '...',
+      });
+    } else {
+      console.log('[TokenManager] No tokens found in SecureStore');
+    }
+
     _accessToken = accessToken;
     _refreshToken = refreshToken;
 
@@ -86,6 +99,7 @@ export const TokenManager = {
    * Called on logout.
    */
   clearTokens: async (): Promise<void> => {
+    console.log('[TokenManager] Clearing tokens from memory and storage');
     _accessToken = null;
     _refreshToken = null;
 

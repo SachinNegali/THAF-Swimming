@@ -1,8 +1,8 @@
+import { TokenManager } from '@/lib/api/tokenManager';
 import { store } from '@/store';
 import { logout, updateTokens } from '@/store/slices/authSlice';
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from './endpoints';
-import { TokenManager } from './tokenManager';
 
 /**
  * Axios instance with interceptors for authentication and error handling.
@@ -45,7 +45,7 @@ const processQueue = (error: unknown, token: string | null) => {
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = TokenManager.getAccessToken();
-    console.log("TOKEN....", token);
+    console.log("THIS IS TOKEN IN A CALLL",  token)
 
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -65,8 +65,8 @@ apiClient.interceptors.response.use(
     };
 
     // Only attempt refresh on 401 and if we haven't retried yet
+    // Skip auth endpoints — they should never trigger a token refresh
     const isAuthRequest = originalRequest.url?.includes('/auth/');
-    console.log("ERROR IN API CLIENT....", originalRequest?.url);
     if (error.response?.status !== 401 || originalRequest._retry || isAuthRequest) {
       return Promise.reject(error);
     }
@@ -88,7 +88,7 @@ apiClient.interceptors.response.use(
 
     try {
       const refreshToken = TokenManager.getRefreshToken();
-
+      console.log("THIS IS REFRESH TOKEN IN A CALLL",  refreshToken)
       if (!refreshToken) {
         throw new Error('No refresh token available');
       }
@@ -129,10 +129,22 @@ apiClient.interceptors.response.use(
 
       return apiClient(originalRequest);
     } catch (refreshError) {
-      // Refresh failed — log out the user
       processQueue(refreshError, null);
-      await TokenManager.clearTokens();
-      store.dispatch(logout());
+
+      // Only force-logout if the refresh token was actually REJECTED (401/403).
+      // If the refresh endpoint is unavailable (404), down (500), or the
+      // network is offline, keep the current tokens — the user may still
+      // have a valid session once the issue resolves.
+      const refreshStatus =
+        refreshError instanceof AxiosError
+          ? refreshError.response?.status
+          : undefined;
+
+      if (refreshStatus === 401 || refreshStatus === 403 || !TokenManager.getRefreshToken()) {
+        await TokenManager.clearTokens();
+        store.dispatch(logout());
+      }
+
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;

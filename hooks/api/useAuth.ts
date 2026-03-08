@@ -44,56 +44,53 @@ export function useGoogleLogin() {
 
       try {
         // Step 1: Get idToken from Google (discards profile data)
-        const data = await signInWithGoogle();
-        console.log("GOOGLE SIGNIN DATYA....", data);
-        const { idToken } = data;
+        const { idToken } = await signInWithGoogle();
+
         // Step 2: Send ONLY the idToken to backend for verification
         const payload: GoogleAuthRequest = { idToken };
         const response = await apiClient.post<AuthResponse>(
           endpoints.auth.google,
           payload,
         );
-        console.log("BACKEND RESPONSE....", response.data);
-        return response.data;
+
+        const authData = response.data;
+        const accessToken = authData.tokens.access.token;
+        const refreshToken = authData.tokens.refresh.token;
+
+        // Step 3: Store tokens BEFORE returning — this is critical.
+        // If we did this in onSuccess, React Query would resolve the mutation
+        // first, triggering navigation & API calls before tokens are stored.
+        await TokenManager.setTokens(accessToken, refreshToken);
+
+        // Step 4: Update Redux (triggers isAuthenticated → navigation)
+        dispatch(
+          setCredentials({
+            user: authData.user,
+            accessToken,
+            refreshToken,
+          }),
+        );
+
+        // Step 5: Cache user in React Query
+        qc.setQueryData(queryKeys.auth.currentUser(), authData.user);
+
+        return authData;
       } catch (error) {
         // Don't surface cancellation or in-progress as errors
-        console.log("ERROR IN GOOGLE LOGIN....", error, error?.response?.data, "...BAD REQ?", {...error});
         if (error instanceof GoogleAuthError) {
           if (
             error.code === GoogleAuthErrorCodes.CANCELLED ||
             error.code === GoogleAuthErrorCodes.IN_PROGRESS
           ) {
-            // Rethrow silently — onError can check the code
             throw error;
           }
         }
 
         logApiError(error, 'useGoogleLogin');
-        console.log("ERROR IN PARSE API ERROR....", error, error?.response?.data);
         throw new Error(parseApiError(error));
       } finally {
         dispatch(setAuthLoading(false));
       }
-    },
-
-    onSuccess: async (data) => {
-      const accessToken = data.tokens.access.token;
-      const refreshToken = data.tokens.refresh.token;
-
-      // 1. Persist tokens securely (in-memory + SecureStore)
-      await TokenManager.setTokens(accessToken, refreshToken);
-
-      // 2. Store in Redux for UI access
-      dispatch(
-        setCredentials({
-          user: data.user,
-          accessToken,
-          refreshToken,
-        }),
-      );
-
-      // 3. Cache user data in React Query
-      qc.setQueryData(queryKeys.auth.currentUser(), data.user);
     },
   });
 }
