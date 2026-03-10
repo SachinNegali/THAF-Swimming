@@ -5,7 +5,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import React, { useEffect } from 'react';
 import { Provider as ReduxProvider } from 'react-redux';
 import { AuthProvider } from './AuthContext';
-import { RealtimeProvider } from './RealtimeProvider';
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -35,9 +34,9 @@ export function AppProviders({ children }: AppProvidersProps) {
       <QueryClientProvider client={queryClient}>
         <AuthInitializer />
         <AuthProvider>
-          <RealtimeProvider>
+          {/* <RealtimeProvider> */}
             {children}
-          </RealtimeProvider>
+          {/* </RealtimeProvider> */}
         </AuthProvider>
       </QueryClientProvider>
     </ReduxProvider>
