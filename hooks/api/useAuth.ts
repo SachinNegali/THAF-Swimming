@@ -14,6 +14,7 @@ import {
   logout as logoutAction,
   setAuthLoading,
   setCredentials,
+  setInitialized,
 } from '@/store/slices/authSlice';
 import type { AuthResponse, GoogleAuthRequest } from '@/types/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -136,6 +137,63 @@ export function useLogout() {
       // Step 4: Clear all app state
       dispatch(logoutAction());
       qc.clear();
+    },
+  });
+}
+
+/**
+ * Hook to initialize authentication on app launch.
+ *
+ * FLOW:
+ * 1. Load tokens from SecureStore
+ * 2. If present, fetch /users/me to verify and get profile
+ * 3. Update Redux state
+ * 4. Set isInitialized = true
+ */
+export function useInitializeAuth() {
+  const dispatch = useAppDispatch();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      try {
+        // Step 1: Load tokens from storage
+        const { accessToken, refreshToken } = await TokenManager.loadTokens();
+
+        if (accessToken && refreshToken) {
+          try {
+            // Step 2: Verify tokens by fetching user profile
+            const response = await apiClient.get<AuthResponse['user']>(
+              endpoints.users.me
+            );
+            const user = response.data;
+
+            // Step 3: Update Redux
+            dispatch(
+              setCredentials({
+                user,
+                accessToken,
+                refreshToken,
+              })
+            );
+
+            // Step 4: Populate Query Cache
+            qc.setQueryData(queryKeys.auth.currentUser(), user);
+          } catch (error) {
+            // If verification fails (e.g. 401), the axios interceptor
+            // will have already tried to refresh. If we're here, it means
+            // both tokens are invalid or the network is down.
+            console.warn('[useInitializeAuth] Verification failed:', error);
+            await TokenManager.clearTokens();
+            dispatch(logoutAction());
+          }
+        }
+      } catch (error) {
+        console.error('[useInitializeAuth] Critical failure:', error);
+      } finally {
+        // Always mark as initialized so splash screen can move on
+        dispatch(setInitialized(true));
+      }
     },
   });
 }

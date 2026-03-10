@@ -1,10 +1,10 @@
 import CalendarBottomSheet from '@/components/explore/CalendarBottomSheet';
-import CreateTripBottomSheet from '@/components/explore/CreateTripBottomSheet';
 import { TripCard } from '@/components/explore/TripCard';
 import TripFilterForm from '@/components/explore/TripFilterForm';
 import { JOURNEYS } from '@/dummy-data/journeys';
 import { useCreateTrip, useTrips } from '@/hooks/api/useTrips';
 import type { CreateTripRequest } from '@/types/api';
+import { router } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -60,7 +60,6 @@ const mapTripToJourney = (trip: any) => ({
 
 const App: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isCreateTripOpen, setIsCreateTripOpen] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const expansionAnim = useRef(new Animated.Value(1)).current; // 1 = Expanded, 0 = Collapsed
 
@@ -246,14 +245,10 @@ const App: React.FC = () => {
       </ScrollView>
       <TouchableOpacity
         style={{ position: 'absolute', bottom: 20, right: 20, backgroundColor: '#0f172a', width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' }}
-        onPress={() => setIsCreateTripOpen(true)}
+        onPress={() => router.push('/tripForm')}
       >
         <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#fff' }}>+</Text>
       </TouchableOpacity>
-      <CreateTripBottomSheet
-        isOpen={isCreateTripOpen}
-        setIsOpen={setIsCreateTripOpen}
-      />
       <CalendarBottomSheet
         visible={searchCalOpen}
         onClose={() => setSearchCalOpen(false)}

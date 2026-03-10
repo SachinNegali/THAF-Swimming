@@ -14,7 +14,8 @@ export const endpoints = {
     socialLogin: '/auth/social-login',
     /** idToken-based Google auth — backend verifies the token server-side */
     google: '/auth/google',
-    refreshTokens: '/auth/refresh-tokens',
+    // refreshTokens: '/auth/refresh-tokens',
+    refreshTokens: '/auth/refresh',
     /** Backend invalidates the refresh token */
     logout: '/auth/logout',
   },
@@ -69,10 +70,11 @@ export const endpoints = {
 
   // ─── Users ─────────────────────────────────────────────
   users: {
-    base: '/users',
-    byId: (id: string) => `/users/${id}`,
-    update: (id: string) => `/users/${id}`,
-    search: '/users/search',
+    base: '/user',
+    me: '/user/me',
+    byId: (id: string) => `/user/${id}`,
+    update: (id: string) => `/user/${id}`,
+    search: '/user/search',
   },
 
   // ─── Device registration ──────────────────────────────

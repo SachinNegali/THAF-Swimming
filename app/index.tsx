@@ -3,6 +3,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
+import { useSelector } from "react-redux";
 
 export default function SplashScreen() {
   const colorScheme = useColorScheme();
@@ -10,12 +11,14 @@ export default function SplashScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.3)).current;
 
+  const { isAuthenticated, isInitialized } = useSelector((state: any) => state.auth);
+
   useEffect(() => {
     // Start animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 1000,
+        duration: 800,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
@@ -25,14 +28,23 @@ export default function SplashScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Navigate to login after 3 seconds
-    const timer = setTimeout(() => {
-      router.replace("/login");
-    }, 3000);
-
-    return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    // Once auth is initialized, navigate based on authentication status
+    if (isInitialized) {
+      // Small delay just to let the animation finish or feel natural
+      const timer = setTimeout(() => {
+        if (isAuthenticated) {
+          router.replace("/(tabs)");
+        } else {
+          router.replace("/login");
+        }
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isInitialized, isAuthenticated]);
 
   return (
     <View

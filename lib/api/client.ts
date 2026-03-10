@@ -94,7 +94,7 @@ apiClient.interceptors.response.use(
       }
 
       // Call refresh endpoint (uses a fresh axios instance to avoid interceptor loop)
-      const response = await axios.post(`${API_BASE_URL}/auth/refresh-tokens`, {
+      const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
         refreshToken,
       });
 

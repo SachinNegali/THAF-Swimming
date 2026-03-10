@@ -8,6 +8,7 @@ const initialState: AuthState = {
   refreshToken: null,
   isLoading: false,
   error: null,
+  isInitialized: false,
 };
 
 const authSlice = createSlice({
@@ -57,6 +58,10 @@ const authSlice = createSlice({
       state.error = action.payload;
       state.isLoading = false;
     },
+
+    setInitialized: (state, action: PayloadAction<boolean>) => {
+      state.isInitialized = action.payload;
+    },
   },
 });
 
@@ -67,6 +72,7 @@ export const {
   logout,
   setAuthLoading,
   setAuthError,
+  setInitialized,
 } = authSlice.actions;
 
 export default authSlice.reducer;

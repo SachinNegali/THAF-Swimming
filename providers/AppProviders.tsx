@@ -1,9 +1,8 @@
-import { TokenManager } from '@/lib/api/tokenManager';
+import { useInitializeAuth } from '@/hooks/api/useAuth';
 import { queryClient } from '@/lib/react-query/queryClient';
 import { store } from '@/store';
-import { setCredentials } from '@/store/slices/authSlice';
 import { QueryClientProvider } from '@tanstack/react-query';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Provider as ReduxProvider } from 'react-redux';
 import { AuthProvider } from './AuthContext';
 import { RealtimeProvider } from './RealtimeProvider';
@@ -13,50 +12,28 @@ interface AppProvidersProps {
 }
 
 /**
- * Centralized provider wrapper for the entire app.
- * Order matters: Redux → React Query → Auth → Realtime → Children.
- *
- * On mount, hydrates tokens from SecureStore into memory + Redux
- * so the axios interceptor has the access token ready from the start.
+ * Inner component to trigger auth initialization.
+ * Must be inside ReduxProvider and QueryClientProvider.
  */
-export function AppProviders({ children }: AppProvidersProps) {
-  const [isReady, setIsReady] = useState(false);
+function AuthInitializer() {
+  const { mutate: initializeAuth } = useInitializeAuth();
 
   useEffect(() => {
-    (async () => {
-      try {
-        const { accessToken, refreshToken } = await TokenManager.loadTokens();
+    initializeAuth();
+  }, [initializeAuth]);
 
-        if (accessToken && refreshToken) {
-          // We have persisted tokens — restore auth state in Redux.
-          // User details will be fetched when needed or cached from last session.
-          const existingUser = store.getState().auth.user;
-          if (existingUser) {
-            store.dispatch(
-              setCredentials({
-                user: existingUser,
-                accessToken,
-                refreshToken,
-              })
-            );
-          }
-        }
-      } catch (err) {
-        if (__DEV__) {
-          console.warn('Failed to load persisted tokens:', err);
-        }
-      } finally {
-        setIsReady(true);
-      }
-    })();
-  }, []);
+  return null;
+}
 
-  // Don't render until tokens are hydrated to prevent unauthenticated flashes
-  if (!isReady) return null;
-
+/**
+ * Centralized provider wrapper for the entire app.
+ * Order matters: Redux → React Query → Auth → Realtime → Children.
+ */
+export function AppProviders({ children }: AppProvidersProps) {
   return (
     <ReduxProvider store={store}>
       <QueryClientProvider client={queryClient}>
+        <AuthInitializer />
         <AuthProvider>
           <RealtimeProvider>
             {children}

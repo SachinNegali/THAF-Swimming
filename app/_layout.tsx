@@ -33,6 +33,13 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="groupInfo" options={{ headerShown: false }} />
                 <Stack.Screen name="tripDetails" options={{ headerShown: false, presentation: 'modal' }}/>
+                <Stack.Screen 
+                  name="tripForm" 
+                  options={{ 
+                    headerShown: false, 
+                    presentation: 'pageSheet' 
+                  }} 
+                />
               </Stack>
               <StatusBar style="auto" />
             </BottomSheetModalProvider>
