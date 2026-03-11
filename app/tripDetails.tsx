@@ -3,15 +3,15 @@ import { MOCK_USER } from '@/dummy-data/journeys';
 import { FlashList } from '@shopify/flash-list';
 import React, { memo, useCallback, useState } from 'react';
 import {
-    Dimensions,
-    Image,
-    Pressable,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View
+  Dimensions,
+  Image,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View
 } from 'react-native';
 import { Colors, SPACING } from '../constants/theme'; // Adjust path to your theme file
 

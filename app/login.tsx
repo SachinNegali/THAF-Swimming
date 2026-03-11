@@ -1,46 +1,45 @@
 import { Colors } from "@/constants/theme";
-import { useSocialLogin } from "@/hooks/api/useAuth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useAuth } from "@/providers/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 export default function LoginScreen() {
   const colorScheme = useColorScheme();
   const router = useRouter();
-  const socialLogin = useSocialLogin();
 
-  const handleGoogleLogin = () => {
-    socialLogin.mutate(
-      {
-        provider: 'google',
-        socialId: '1234567892',
-        email: 'testmobile@app.com',
-        fName: 'Mobile user',
-        lName: 'LnameM',
-      },
-      {
-        onSuccess: () => {
-          router.replace("/(tabs)");
-        },
-        onError: (error) => {
-          Alert.alert(
-            "Login Failed",
-            error.message || "Unable to sign in. Please try again.",
-            [{ text: "OK" }]
-          );
-        },
-      }
-    );
-  };
+  const { signIn, isAuthenticated, isLoading, error } = useAuth();
+
+  // ── Track previous error to only alert on new errors ──
+  const prevError = useRef<string | null>(null);
+
+  // ── Navigate on successful authentication ─────────────
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace("/(tabs)");
+    }
+  }, [isAuthenticated, router]);
+
+  // ── Show alert on new errors ──────────────────────────
+  useEffect(() => {
+    if (error && error !== prevError.current) {
+      Alert.alert(
+        "Login Failed",
+        error || "Unable to sign in. Please try again.",
+        [{ text: "OK" }]
+      );
+    }
+    prevError.current = error;
+  }, [error]);
 
   return (
     <View
@@ -80,7 +79,7 @@ export default function LoginScreen() {
 
         {/* Login Button */}
         <View style={styles.buttonContainer}>
-          {socialLogin.isPending ? (
+          {isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator
                 size="large"
@@ -103,8 +102,8 @@ export default function LoginScreen() {
                   backgroundColor: Colors[colorScheme ?? "light"].tint,
                 },
               ]}
-              onPress={handleGoogleLogin}
-              disabled={socialLogin.isPending}
+              onPress={signIn}
+              disabled={isLoading}
               activeOpacity={0.8}
             >
               <Ionicons name="logo-google" size={24} color="#fff" />

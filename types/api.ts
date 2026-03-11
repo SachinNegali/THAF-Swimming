@@ -26,6 +26,11 @@ export interface PaginatedResponse<T> {
 
 // ─── Auth ────────────────────────────────────────────────
 
+/**
+ * @deprecated Use `GoogleAuthRequest` instead.
+ * This type sent profile data from the frontend which is insecure —
+ * profile data can be forged by a malicious client.
+ */
 export interface SocialLoginRequest {
   provider: 'google' | 'apple' | 'facebook';
   socialId: string;
@@ -33,6 +38,22 @@ export interface SocialLoginRequest {
   fName: string;
   lName: string;
   profilePicture?: string;
+}
+
+/**
+ * SECURITY: Send ONLY the Google idToken to the backend.
+ * The backend verifies this token with Google's servers and extracts
+ * the user's profile info server-side. Never trust frontend profile data.
+ */
+export interface GoogleAuthRequest {
+  idToken: string;
+}
+
+/**
+ * Request to logout — send the refresh token so the backend can invalidate it.
+ */
+export interface LogoutRequest {
+  refreshToken: string;
 }
 
 export interface AuthResponse {

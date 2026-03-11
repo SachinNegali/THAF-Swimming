@@ -24,6 +24,7 @@ const MAX_SSE_RETRIES = 5;
  * when events arrive, so UI stays in sync without manual refetching.
  */
 export function useSSE(enabled = true) {
+  console.log("USE SSE CALLED")
   const qc = useQueryClient();
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<SSEEvent | null>(null);
@@ -94,68 +95,70 @@ export function useSSE(enabled = true) {
 
   // ─── SSE stream connection ─────────────────────────────
 
-  const connectSSE = useCallback(() => {
-    if (!enabled) return;
+  // const connectSSE = useCallback(() => {
+  //   if (!enabled) return;
 
-    const token = store.getState().auth.accessToken;
-    if (!token) {
-      setStatus('disconnected');
-      return;
-    }
+  //   const token = store.getState().auth.accessToken;
+  //   if (!token) {
+  //     setStatus('disconnected');
+  //     return;
+  //   }
 
-    // Close existing connection
-    eventSourceRef.current?.close();
+  //   // Close existing connection
+  //   eventSourceRef.current?.close();
 
-    setStatus('connecting');
+  //   setStatus('connecting');
 
-    // Build the SSE URL with auth token as query param
-    // (EventSource doesn't support custom headers)
-    const sseUrl = `${API_BASE_URL}${endpoints.sse.stream}?token=${encodeURIComponent(token)}`;
+  //   // Build the SSE URL with auth token as query param
+  //   // (EventSource doesn't support custom headers)
+  //   const sseUrl = `${API_BASE_URL}${endpoints.sse.stream}?token=${encodeURIComponent(token)}`;
 
-    try {
-      const es = new EventSource(sseUrl);
-      eventSourceRef.current = es;
+  //   try {
+  //     const es = new EventSource(sseUrl);
+  //     eventSourceRef.current = es;
 
-      es.onopen = () => {
-        setStatus('connected');
-        retryCountRef.current = 0; // Reset retries on successful connect
-      };
+  //     es.onopen = () => {
+  //       setStatus('connected');
+  //       retryCountRef.current = 0; // Reset retries on successful connect
+  //     };
 
-      es.onmessage = (rawEvent) => {
-        try {
-          const parsed: SSEEvent = JSON.parse(rawEvent.data);
-          handleEvent(parsed);
-        } catch {
-          // Ignore unparseable events (e.g. heartbeat pings)
-        }
-      };
+  //     es.onmessage = (rawEvent) => {
+  //       try {
+  //         const parsed: SSEEvent = JSON.parse(rawEvent.data);
+  //         handleEvent(parsed);
+  //       } catch {
+  //         // Ignore unparseable events (e.g. heartbeat pings)
+  //       }
+  //     };
 
-      es.onerror = () => {
-        es.close();
-        eventSourceRef.current = null;
-        setStatus('disconnected');
+  //     es.onerror = (error) => {
+  //       es.close();
+  //       eventSourceRef.current = null;
+  //       setStatus('disconnected');
 
-        retryCountRef.current += 1;
+  //       retryCountRef.current += 1;
 
-        if (retryCountRef.current > MAX_SSE_RETRIES) {
-          // Exceeded SSE retries → fall back to long polling
-          startPolling();
-          return;
-        }
+  //       if (retryCountRef.current > MAX_SSE_RETRIES) {
+  //         // Exceeded SSE retries → fall back to long polling
+  //         // startPolling();
+  //         console.log("FALLING BACK TO LONG POLLING", error)
+  //         return;
+  //       }
 
-        // Exponential backoff retry
-        const delay = Math.min(
-          INITIAL_RETRY_DELAY * 2 ** (retryCountRef.current - 1),
-          MAX_RETRY_DELAY
-        );
+  //       // Exponential backoff retry
+  //       const delay = Math.min(
+  //         INITIAL_RETRY_DELAY * 2 ** (retryCountRef.current - 1),
+  //         MAX_RETRY_DELAY
+  //       );
 
-        retryTimeoutRef.current = setTimeout(connectSSE, delay);
-      };
-    } catch {
-      // EventSource constructor can throw in some environments
-      startPolling();
-    }
-  }, [enabled, handleEvent]);
+  //       retryTimeoutRef.current = setTimeout(connectSSE, delay);
+  //     };
+  //   } catch(error) {
+  //     // EventSource constructor can throw in some environments
+  //     // startPolling();
+  //     console.log("FALLING BACK TO LONG POLLING", error)
+  //   }
+  // }, [enabled, handleEvent]);
 
   // ─── Long-polling fallback ─────────────────────────────
 
@@ -191,6 +194,77 @@ export function useSSE(enabled = true) {
     }
   }, []);
 
+
+  const connectSSE = useCallback(() => {
+    if (!enabled) {
+      console.log('[SSE] Disabled, skipping connection');
+      return;
+    }
+
+    const token = store.getState().auth.accessToken;
+    if (!token) {
+      console.log('[SSE] No token available, cannot connect');
+      setStatus('disconnected');
+      return;
+    }
+
+    // Close existing connection
+    eventSourceRef.current?.close();
+
+    setStatus('connecting');
+    console.log('[SSE] Attempting SSE connection...');
+
+    const sseUrl = `${API_BASE_URL}${endpoints.sse.stream}?token=${encodeURIComponent(token)}`;
+
+    try {
+      const es = new EventSource(sseUrl);
+      eventSourceRef.current = es;
+
+      es.onopen = () => {
+        console.log('[SSE] Connected successfully');
+        setStatus('connected');
+        retryCountRef.current = 0;
+        stopPolling(); // Stop polling if we were falling back
+      };
+
+      es.onmessage = (rawEvent) => {
+        try {
+          const parsed: SSEEvent = JSON.parse(rawEvent.data);
+          console.log('[SSE] Event received:', parsed.type);
+          handleEvent(parsed);
+        } catch (err) {
+          console.log('[SSE] Parse error or heartbeat:', rawEvent.data);
+        }
+      };
+
+      es.onerror = (error) => {
+        console.log('[SSE] Error occurred, closing connection');
+        es.close();
+        eventSourceRef.current = null;
+        setStatus('disconnected');
+
+        retryCountRef.current += 1;
+
+        if (retryCountRef.current > MAX_SSE_RETRIES) {
+          console.log('[SSE] Max retries exceeded, falling back to polling');
+          startPolling(); // ← UNCOMMENT THIS
+          return;
+        }
+
+        const delay = Math.min(
+          INITIAL_RETRY_DELAY * 2 ** (retryCountRef.current - 1),
+          MAX_RETRY_DELAY
+        );
+
+        console.log(`[SSE] Retrying in ${delay}ms (attempt ${retryCountRef.current})`);
+        retryTimeoutRef.current = setTimeout(connectSSE, delay);
+      };
+    } catch (error) {
+      console.log('[SSE] Constructor failed, falling back to polling:', error);
+      startPolling(); // ← UNCOMMENT THIS
+    }
+  }, [enabled, handleEvent, startPolling, stopPolling]);
+
   // ─── Lifecycle ─────────────────────────────────────────
 
   useEffect(() => {
@@ -221,6 +295,7 @@ export function useSSE(enabled = true) {
     retryCountRef.current = 0;
     connectSSE();
   }, [connectSSE, stopPolling]);
+
 
   return { status, lastEvent, reconnect };
 }

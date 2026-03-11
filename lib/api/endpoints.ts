@@ -10,8 +10,14 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://abd1-152
 export const endpoints = {
   // ─── Auth ──────────────────────────────────────────────
   auth: {
+    /** @deprecated Use auth.google instead */
     socialLogin: '/auth/social-login',
-    refreshTokens: '/auth/refresh-tokens',
+    /** idToken-based Google auth — backend verifies the token server-side */
+    google: '/auth/google',
+    // refreshTokens: '/auth/refresh-tokens',
+    refreshTokens: '/auth/refresh',
+    /** Backend invalidates the refresh token */
+    logout: '/auth/logout',
   },
 
   // ─── Trips ─────────────────────────────────────────────
@@ -64,10 +70,11 @@ export const endpoints = {
 
   // ─── Users ─────────────────────────────────────────────
   users: {
-    base: '/users',
-    byId: (id: string) => `/users/${id}`,
-    update: (id: string) => `/users/${id}`,
-    search: '/users/search',
+    base: '/user',
+    me: '/user/me',
+    byId: (id: string) => `/user/${id}`,
+    update: (id: string) => `/user/${id}`,
+    search: '/user/search',
   },
 
   // ─── Device registration ──────────────────────────────
