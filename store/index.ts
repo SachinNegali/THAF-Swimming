@@ -1,6 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import appReducer from './slices/appSlice';
 import authReducer from './slices/authSlice';
+import notificationReducer from './slices/notificationSlice';
 import uiReducer from './slices/uiSlice';
 
 export const store = configureStore({
@@ -8,6 +9,7 @@ export const store = configureStore({
     auth: authReducer,
     ui: uiReducer,
     app: appReducer,
+    notification: notificationReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
