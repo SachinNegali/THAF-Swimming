@@ -10,7 +10,18 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.thafapp.thaf"
+      "bundleIdentifier": "com.thafapp.thaf",
+      "config": {
+        "googleMapsApiKey": "AIzaSyBIaPQX7NEd3CBNIbRw93kKG890LPyXcWs"
+      },
+      "infoPlist": {
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs your location to share with buddies and provide turn-by-turn navigation.",
+        "NSLocationWhenInUseUsageDescription": "This app needs your location to show your position on the map.",
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +33,18 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.thafapp.thaf",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBIaPQX7NEd3CBNIbRw93kKG890LPyXcWs"
+        }
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
     },
     "web": {
       "output": "static",
@@ -43,7 +65,16 @@
         }
       ],
       "expo-web-browser",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#E6F4FE",
+          "defaultChannel": "default"
+        }
+      ],
+      "expo-maps"
     ],
     "experiments": {
       "typedRoutes": true,
