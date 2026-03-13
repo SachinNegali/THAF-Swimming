@@ -2,17 +2,17 @@ import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Keyboard,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Keyboard,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
@@ -27,9 +27,10 @@ const { width, height } = Dimensions.get('window');
 const GOOGLE_MAPS_API_KEY = 'AIzaSyBIaPQX7NEd3CBNIbRw93kKG890LPyXcWs';
 
 // ─── Config ──────────────────────────────────────────────
-const TRACKING_WS_URL = 'ws://localhost:9001';
-const BUDDY_API_BASE = 'http://localhost:9001'; // placeholder REST base
-const HARDCODED_GROUP_ID = '000000000000000000000001'; // TODO: replace with real groupId
+// const TRACKING_WS_URL = 'ws://localhost:9001';
+const TRACKING_WS_URL = "wss://api.tankhalfull.com/tracking"
+const BUDDY_API_BASE = 'https://api.tankhalfull.com/v1'; // placeholder REST base
+const HARDCODED_GROUP_ID = 'test-group-id'; // TODO: replace with real groupId
 
 type RouteMode = 'motorcycle' | 'driving' | 'bicycling' | 'walking';
 
@@ -115,6 +116,7 @@ export default function BuddyMapExpo() {
     enabled: !!accessToken && !!user,
   });
 
+  console.log("TRACKING ERROR", trackingError)
   // Derive user coords from tracking hook
   const location = useMemo(
     () => myLocation?.coords ?? null,
@@ -575,10 +577,11 @@ export default function BuddyMapExpo() {
 
   // ─── Render ────────────────────────────────────────
 
-  if (errorMsg || trackingError) {
+  // Only block on fatal local errors (e.g. location permission denied)
+  if (errorMsg) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{errorMsg || trackingError}</Text>
+        <Text style={styles.errorText}>{errorMsg}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={() => setErrorMsg(null)}>
           <Text style={styles.buttonText}>Retry</Text>
         </TouchableOpacity>
@@ -730,9 +733,9 @@ export default function BuddyMapExpo() {
           </View>
 
           {/* Connection status indicator */}
-          <View style={[styles.connectionBadge, { backgroundColor: isConnected ? '#4CAF50' : '#9E9E9E' }]}>
+          <View style={[styles.connectionBadge, { backgroundColor: isConnected ? '#4CAF50' : trackingError ? '#FF5252' : '#9E9E9E' }]}>
             <Text style={styles.connectionText}>
-              {isConnected ? `${groupSize} online` : 'offline'}
+              {isConnected ? `${groupSize} online` : trackingError ? 'error' : 'offline'}
             </Text>
           </View>
 

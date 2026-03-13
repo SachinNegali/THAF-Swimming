@@ -16,6 +16,7 @@ interface RegisterDevicePayload {
 export function useDeviceRegistration() {
   return useMutation({
     mutationFn: async (token: string) => {
+      console.log('Registering device with token:', token);
       const payload: RegisterDevicePayload = {
         token,
         platform: Platform.OS as 'ios' | 'android',

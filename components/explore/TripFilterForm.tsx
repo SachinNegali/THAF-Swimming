@@ -1,7 +1,9 @@
 import { DATE_OPTIONS } from '@/dummy-data/journeys';
-import React from 'react';
+import { PlacePrediction, usePlacesSearch } from '@/hooks/usePlacesSearch';
+import React, { useCallback } from 'react';
 import {
-    // ScrollView,
+    ActivityIndicator,
+    Keyboard,
     StyleSheet,
     Text,
     TextInput,
@@ -11,7 +13,13 @@ import {
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
-// ─── Props ─────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────
+export interface SelectedPlace {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 export interface TripFilterFormProps {
   fromLocation: string;
   setFromLocation: (v: string) => void;
@@ -23,6 +31,10 @@ export interface TripFilterFormProps {
   setEndDate: (v: string) => void;
   /** Called when a date field is tapped — parent should open CalendarBottomSheet */
   onDatePress: (mode: 'start' | 'end') => void;
+  /** Called when a FROM place is selected from autocomplete */
+  onFromPlaceSelected?: (place: SelectedPlace) => void;
+  /** Called when a TO place is selected from autocomplete */
+  onToPlaceSelected?: (place: SelectedPlace) => void;
 }
 
 const formatDate = (iso: string): string => {
@@ -45,13 +57,63 @@ export default function TripFilterForm({
   endDate,
   setEndDate,
   onDatePress,
+  onFromPlaceSelected,
+  onToPlaceSelected,
 }: TripFilterFormProps) {
+  // ── Two separate search instances ─────────────────────
+  const fromSearch = usePlacesSearch();
+  const toSearch = usePlacesSearch();
+
+  // ── FROM field handlers ───────────────────────────────
+  const handleFromTextChange = useCallback(
+    (text: string) => {
+      setFromLocation(text);
+      fromSearch.onSearchTextChange(text);
+    },
+    [setFromLocation, fromSearch.onSearchTextChange],
+  );
+
+  const handleFromSelect = useCallback(
+    async (prediction: PlacePrediction) => {
+      Keyboard.dismiss();
+      const details = await fromSearch.selectPlace(prediction);
+      const name = prediction.structured_formatting.main_text;
+      setFromLocation(name);
+      if (details && onFromPlaceSelected) {
+        onFromPlaceSelected({ name: details.name || name, lat: details.lat, lng: details.lng });
+      }
+    },
+    [fromSearch.selectPlace, setFromLocation, onFromPlaceSelected],
+  );
+
+  // ── TO field handlers ─────────────────────────────────
+  const handleToTextChange = useCallback(
+    (text: string) => {
+      setToLocation(text);
+      toSearch.onSearchTextChange(text);
+    },
+    [setToLocation, toSearch.onSearchTextChange],
+  );
+
+  const handleToSelect = useCallback(
+    async (prediction: PlacePrediction) => {
+      Keyboard.dismiss();
+      const details = await toSearch.selectPlace(prediction);
+      const name = prediction.structured_formatting.main_text;
+      setToLocation(name);
+      if (details && onToPlaceSelected) {
+        onToPlaceSelected({ name: details.name || name, lat: details.lat, lng: details.lng });
+      }
+    },
+    [toSearch.selectPlace, setToLocation, onToPlaceSelected],
+  );
 
   return (
     <View>
       {/* FROM / TO */}
       <View style={styles.section}>
         <View style={styles.inputGroup}>
+          {/* ── FROM ──────────────────────────────────── */}
           <View style={styles.locationWrapper}>
             <Text style={styles.inputLabel}>FROM</Text>
             <View style={styles.inputInner}>
@@ -61,9 +123,38 @@ export default function TripFilterForm({
                 placeholder="Starting city"
                 placeholderTextColor="#94a3b8"
                 value={fromLocation}
-                onChangeText={setFromLocation}
+                onChangeText={handleFromTextChange}
+                onFocus={() => {
+                  if (fromSearch.searchResults.length > 0) fromSearch.setShowSearchResults(true);
+                }}
               />
+              {fromSearch.isSearching && <ActivityIndicator size="small" color="#2196F3" />}
+              {fromLocation.length > 0 && !fromSearch.isSearching && (
+                <TouchableOpacity onPress={() => { setFromLocation(''); fromSearch.clearSearch(); }}>
+                  <Text style={styles.clearIcon}>✕</Text>
+                </TouchableOpacity>
+              )}
             </View>
+            {/* FROM autocomplete dropdown */}
+            {fromSearch.showSearchResults && fromSearch.searchResults.length > 0 && (
+              <View style={styles.dropdownContainer}>
+                <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled style={styles.dropdownScroll}>
+                  {fromSearch.searchResults.map((item, index) => (
+                    <TouchableOpacity
+                      key={item.place_id}
+                      style={[styles.dropdownItem, index < fromSearch.searchResults.length - 1 && styles.dropdownBorder]}
+                      onPress={() => handleFromSelect(item)}
+                    >
+                      <Text style={styles.dropdownIcon}>📍</Text>
+                      <View style={styles.dropdownTextContainer}>
+                        <Text style={styles.dropdownMain} numberOfLines={1}>{item.structured_formatting.main_text}</Text>
+                        <Text style={styles.dropdownSecondary} numberOfLines={1}>{item.structured_formatting.secondary_text}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
 
           <View style={styles.swapButtonWrapper}>
@@ -79,6 +170,7 @@ export default function TripFilterForm({
             </TouchableOpacity>
           </View>
 
+          {/* ── TO ────────────────────────────────────── */}
           <View style={styles.locationWrapper}>
             <Text style={styles.inputLabel}>TO</Text>
             <View style={styles.inputInner}>
@@ -88,9 +180,38 @@ export default function TripFilterForm({
                 placeholder="Destination city"
                 placeholderTextColor="#94a3b8"
                 value={toLocation}
-                onChangeText={setToLocation}
+                onChangeText={handleToTextChange}
+                onFocus={() => {
+                  if (toSearch.searchResults.length > 0) toSearch.setShowSearchResults(true);
+                }}
               />
+              {toSearch.isSearching && <ActivityIndicator size="small" color="#2196F3" />}
+              {toLocation.length > 0 && !toSearch.isSearching && (
+                <TouchableOpacity onPress={() => { setToLocation(''); toSearch.clearSearch(); }}>
+                  <Text style={styles.clearIcon}>✕</Text>
+                </TouchableOpacity>
+              )}
             </View>
+            {/* TO autocomplete dropdown */}
+            {toSearch.showSearchResults && toSearch.searchResults.length > 0 && (
+              <View style={styles.dropdownContainer}>
+                <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled style={styles.dropdownScroll}>
+                  {toSearch.searchResults.map((item, index) => (
+                    <TouchableOpacity
+                      key={item.place_id}
+                      style={[styles.dropdownItem, index < toSearch.searchResults.length - 1 && styles.dropdownBorder]}
+                      onPress={() => handleToSelect(item)}
+                    >
+                      <Text style={styles.dropdownIcon}>📍</Text>
+                      <View style={styles.dropdownTextContainer}>
+                        <Text style={styles.dropdownMain} numberOfLines={1}>{item.structured_formatting.main_text}</Text>
+                        <Text style={styles.dropdownSecondary} numberOfLines={1}>{item.structured_formatting.secondary_text}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
         </View>
       </View>
@@ -158,13 +279,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 12,
   },
-  sectionLabel: {
-    fontSize: 8,
-    fontWeight: '800',
-    color: '#94a3b8',
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
   inputGroup: {
     gap: 8,
     position: 'relative',
@@ -175,13 +289,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
     padding: 12,
-  },
-  inputWrapper: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 12,
+    zIndex: 1,
   },
   inputLabel: {
     fontSize: 8,
@@ -203,6 +311,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0f172a',
     padding: 0,
+  },
+  clearIcon: {
+    fontSize: 14,
+    color: '#94a3b8',
+    paddingHorizontal: 4,
   },
   swapButtonWrapper: {
     position: 'absolute',
@@ -229,6 +342,51 @@ const styles = StyleSheet.create({
   swapIcon: {
     fontSize: 14,
   },
+  // ── Dropdown ──────────────────────────────────────────
+  dropdownContainer: {
+    marginTop: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    overflow: 'hidden',
+  },
+  dropdownScroll: {
+    maxHeight: 200,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  dropdownBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e2e8f0',
+  },
+  dropdownIcon: {
+    fontSize: 14,
+    marginRight: 12,
+  },
+  dropdownTextContainer: {
+    flex: 1,
+  },
+  dropdownMain: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  dropdownSecondary: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  // ── Dates ─────────────────────────────────────────────
   dateRow: {
     flexDirection: 'row',
     gap: 8,

@@ -46,6 +46,7 @@ apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = TokenManager.getAccessToken();
     console.log("THIS IS TOKEN IN A CALLL",  token)
+    console.log("THIS IS API BASE URL", API_BASE_URL)
 
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;

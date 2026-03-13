@@ -36,7 +36,13 @@ export async function setupNotificationChannel(): Promise<void> {
  * or if the user denies the permission prompt.
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  // Push notifications only work on physical devices
+  // Push notifications only work on physical devices.
+  // Safety check if native module is missing
+  if (!Device || typeof Device.isDevice === 'undefined') {
+    console.warn('ExpoDevice native module is not available');
+    return null;
+  }
+
   if (!Device.isDevice) {
     console.warn('Push notifications require a physical device');
     return null;
