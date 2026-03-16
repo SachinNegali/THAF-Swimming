@@ -1,4 +1,5 @@
 import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -18,19 +19,32 @@ import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE } from 'react-nativ
 
 import { MapFAB, QuickActionsSheet, RidersBottomSheet } from '../../components/ride';
 import { Buddy } from '../../components/ride/types';
+import { useTrips } from '../../hooks/api/useTrips';
 import { useTracking } from '../../hooks/useTracking';
 import { objectIdToNumericId } from '../../services/tracking/binaryProtocol';
 import { useAppSelector } from '../../store/hooks';
 import { selectAccessToken, selectUser } from '../../store/selectors';
+import { Trip } from '../../types/api';
 
 const { width, height } = Dimensions.get('window');
 const GOOGLE_MAPS_API_KEY = 'AIzaSyBIaPQX7NEd3CBNIbRw93kKG890LPyXcWs';
 
 // ─── Config ──────────────────────────────────────────────
-// const TRACKING_WS_URL = 'ws://localhost:9001';
-const TRACKING_WS_URL = "wss://api.tankhalfull.com/tracking"
-const BUDDY_API_BASE = 'https://api.tankhalfull.com/v1'; // placeholder REST base
-const HARDCODED_GROUP_ID = 'test-group-id'; // TODO: replace with real groupId
+const TRACKING_WS_URL = 'wss://api.tankhalfull.com/tracking';
+const BUDDY_API_BASE = 'https://api.tankhalfull.com/v1';
+
+// ─── Ride Mode ───────────────────────────────────────────
+/**
+ * Describes how the current tracking session was initiated.
+ *
+ * none  — tracking is off; show "Start Ride" prompt.
+ * quick — ephemeral session; groupId is a random short ID generated on device.
+ * trip  — formal trip from the backend; groupId = trip.id.
+ */
+type RideMode =
+  | { type: 'none' }
+  | { type: 'quick'; groupId: string }
+  | { type: 'trip'; trip: Trip };
 
 type RouteMode = 'motorcycle' | 'driving' | 'bicycling' | 'walking';
 
@@ -92,7 +106,7 @@ export default function BuddyMapExpo() {
   const mapRef = useRef<MapView>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auth state
+  // ─── Auth state ──────────────────────────────────────
   const accessToken = useAppSelector(selectAccessToken);
   const user = useAppSelector(selectUser);
   const numericUserId = useMemo(
@@ -100,9 +114,48 @@ export default function BuddyMapExpo() {
     [user?._id],
   );
 
+  // ─── Ride mode ───────────────────────────────────────
+  const [rideMode, setRideMode] = useState<RideMode>({ type: 'none' });
+
+  // Resolved groupId — the single value fed into useTracking
+  const trackingGroupId = useMemo<string | null>(() => {
+    if (rideMode.type === 'trip')  return rideMode.trip.id;
+    if (rideMode.type === 'quick') return rideMode.groupId;
+    return null;
+  }, [rideMode]);
+
+  // ─── Active trip detection ───────────────────────────
+  const { data: activeTripsData } = useTrips({ status: 'active' });
+  const serverActiveTrip = activeTripsData?.data?.[0] ?? null;
+
+  // Auto-enter trip mode when the server returns an active trip and we
+  // aren't already in a session (don't clobber a quick ride).
+  useEffect(() => {
+    if (serverActiveTrip && rideMode.type === 'none') {
+      setRideMode({ type: 'trip', trip: serverActiveTrip });
+    }
+  }, [serverActiveTrip]);
+
+  // ─── Ride actions ────────────────────────────────────
+  const startQuickRide = useCallback(async () => {
+    const uuid = await Crypto.randomUUID();
+    // Use last 8 chars of the first UUID segment — short & unique enough for a ride
+    const groupId = 'QR-' + uuid.split('-')[0].toUpperCase();
+    setRideMode({ type: 'quick', groupId });
+  }, []);
+
+  const startTripRide = useCallback((trip: Trip) => {
+    setRideMode({ type: 'trip', trip });
+  }, []);
+
+  const endRide = useCallback(() => {
+    setRideMode({ type: 'none' });
+  }, []);
+
   // ─── Tracking hook ──────────────────────────────────
   const {
     isConnected,
+    isPolling,
     peerLocations,
     myLocation,
     groupSize,
@@ -110,13 +163,12 @@ export default function BuddyMapExpo() {
   } = useTracking({
     wsUrl: TRACKING_WS_URL,
     accessToken: accessToken ?? '',
-    groupId: HARDCODED_GROUP_ID,
+    groupId: trackingGroupId ?? '',
     numericUserId,
     updateIntervalMs: 2000,
-    enabled: !!accessToken && !!user,
+    enabled: !!accessToken && !!user && !!trackingGroupId,
   });
 
-  console.log("TRACKING ERROR", trackingError)
   // Derive user coords from tracking hook
   const location = useMemo(
     () => myLocation?.coords ?? null,
@@ -124,10 +176,8 @@ export default function BuddyMapExpo() {
   );
 
   // ─── Buddy profile cache ───────────────────────────
-  // Maps numericId → Buddy profile fetched via REST
   const buddyProfileCache = useRef<Map<number, Buddy>>(new Map());
 
-  /** Fetch buddy profile from REST and cache it. */
   const fetchBuddyProfile = useCallback(async (peerId: string): Promise<Buddy | null> => {
     try {
       const res = await fetch(`${BUDDY_API_BASE}/buddy/${peerId}`, {
@@ -161,13 +211,10 @@ export default function BuddyMapExpo() {
       const result: Buddy[] = [];
 
       for (const [numId, peer] of peerLocations) {
-        // Skip self
         if (numId === numericUserId) continue;
 
-        // Check cache; fetch if missing
         let profile = buddyProfileCache.current.get(numId);
         if (!profile) {
-          // We don't have the real ObjectId from binary, so pass numId as string
           const fetched = await fetchBuddyProfile(String(numId));
           if (fetched) {
             buddyProfileCache.current.set(numId, fetched);
@@ -222,11 +269,6 @@ export default function BuddyMapExpo() {
   const [trafficSegments, setTrafficSegments] = useState<TrafficSegment[]>([]);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
   const [isRidersOpen, setIsRidersOpen] = useState(false);
-
-  const RIDE_ID = useMemo(
-    () => 'THAF-RIDE-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-    [],
-  );
 
   // Update heading from myLocation
   useEffect(() => {
@@ -576,8 +618,6 @@ export default function BuddyMapExpo() {
   };
 
   // ─── Render ────────────────────────────────────────
-
-  // Only block on fatal local errors (e.g. location permission denied)
   if (errorMsg) {
     return (
       <View style={styles.centerContainer}>
@@ -712,32 +752,61 @@ export default function BuddyMapExpo() {
       {/* ─── Top Bar — Search ─── */}
       {!isNavigating && (
         <View style={styles.topBar}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color="#666" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search destination..."
-              placeholderTextColor="#999"
-              value={searchQuery}
-              onChangeText={onSearchTextChange}
-              onSubmitEditing={handleSearchSubmit}
-              returnKeyType="search"
-              onFocus={() => { if (searchResults.length > 0) setShowSearchResults(true); }}
-            />
-            {isSearching && <ActivityIndicator size="small" color="#2196F3" />}
-            {searchQuery.length > 0 && !isSearching && (
-              <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchResults([]); setShowSearchResults(false); }}>
-                <Ionicons name="close-circle" size={20} color="#999" />
-              </TouchableOpacity>
-            )}
+          <View style={styles.searchRow}>
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={20} color="#666" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search destination..."
+                placeholderTextColor="#999"
+                value={searchQuery}
+                onChangeText={onSearchTextChange}
+                onSubmitEditing={handleSearchSubmit}
+                returnKeyType="search"
+                onFocus={() => { if (searchResults.length > 0) setShowSearchResults(true); }}
+              />
+              {isSearching && <ActivityIndicator size="small" color="#2196F3" />}
+              {searchQuery.length > 0 && !isSearching && (
+                <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchResults([]); setShowSearchResults(false); }}>
+                  <Ionicons name="close-circle" size={20} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Connection status badge */}
+            <View style={[styles.connectionBadge, {
+              backgroundColor:
+                isConnected ? '#4CAF50' :
+                isPolling   ? '#FF9800' :
+                trackingError ? '#FF5252' : '#9E9E9E',
+            }]}>
+              <Text style={styles.connectionText}>
+                {isConnected    ? `${groupSize} online` :
+                 isPolling      ? 'polling' :
+                 trackingError  ? 'error' : 'offline'}
+              </Text>
+            </View>
           </View>
 
-          {/* Connection status indicator */}
-          <View style={[styles.connectionBadge, { backgroundColor: isConnected ? '#4CAF50' : trackingError ? '#FF5252' : '#9E9E9E' }]}>
-            <Text style={styles.connectionText}>
-              {isConnected ? `${groupSize} online` : trackingError ? 'error' : 'offline'}
-            </Text>
-          </View>
+          {/* Active ride strip — shows when a ride session is running */}
+          {rideMode.type !== 'none' && (
+            <View style={styles.rideStrip}>
+              <View style={styles.rideStripLeft}>
+                <View style={[styles.rideDot, {
+                  backgroundColor: rideMode.type === 'quick' ? '#FF6D00' : '#2196F3',
+                }]} />
+                <Text style={styles.rideStripLabel} numberOfLines={1}>
+                  {rideMode.type === 'quick'
+                    ? `Quick Ride · ${rideMode.groupId}`
+                    : `Trip · ${rideMode.trip.title}`}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.rideStripEnd} onPress={endRide}>
+                <Ionicons name="stop-circle-outline" size={18} color="#FF5252" />
+                <Text style={styles.rideStripEndText}>End</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {showSearchResults && searchResults.length > 0 && (
             <View style={styles.searchResultsContainer}>
@@ -829,6 +898,32 @@ export default function BuddyMapExpo() {
         </View>
       )}
 
+      {/* ─── No Ride Card — prompt to start a session ─── */}
+      {rideMode.type === 'none' && !isNavigating && !destination && (
+        <View style={styles.noRideCard}>
+          <Text style={styles.noRideTitle}>Not in a ride</Text>
+          <Text style={styles.noRideSubtitle}>Start sharing your location with buddies</Text>
+          <View style={styles.noRideActions}>
+            <TouchableOpacity style={styles.quickRideBtn} onPress={startQuickRide}>
+              <Ionicons name="flash" size={16} color="white" />
+              <Text style={styles.quickRideBtnText}>Quick Ride</Text>
+            </TouchableOpacity>
+
+            {/* Show active trips from server if any are planned */}
+            {activeTripsData?.data?.filter(t => t.status === 'planned').map((trip) => (
+              <TouchableOpacity
+                key={trip.id}
+                style={styles.tripRideBtn}
+                onPress={() => startTripRide(trip)}
+              >
+                <Ionicons name="map" size={16} color="#2196F3" />
+                <Text style={styles.tripRideBtnText} numberOfLines={1}>{trip.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
       {/* ─── Floating Controls ─── */}
       <View style={[styles.floatingControls, isNavigating && { bottom: 30 }]}>
         <TouchableOpacity style={styles.iconButton} onPress={centerOnUser}>
@@ -851,7 +946,7 @@ export default function BuddyMapExpo() {
         userLocation={location}
         getDistance={getDistance}
         onBuddyPress={navigateToBuddy}
-        rideId={RIDE_ID}
+        rideId={trackingGroupId ?? '—'}
         isOpen={isRidersOpen}
         setIsOpen={() => setIsRidersOpen(false)}
       />
@@ -898,15 +993,28 @@ const styles = StyleSheet.create({
   destinationPulse: { position: 'absolute', width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,82,82,0.2)', zIndex: -1 },
   // Search
   topBar: { position: 'absolute', top: Platform.OS === 'ios' ? 50 : 30, left: 16, right: 16, zIndex: 10 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   searchBar: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 25,
+    flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 25,
     paddingHorizontal: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 5,
   },
   searchInput: { flex: 1, marginLeft: 10, fontSize: 16, color: '#333' },
   connectionBadge: {
-    alignSelf: 'flex-end', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginTop: 8,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12,
   },
   connectionText: { color: 'white', fontSize: 11, fontWeight: '700' },
+  // Active ride strip
+  rideStrip: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: 'white', borderRadius: 14, marginTop: 8, paddingHorizontal: 14, paddingVertical: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+  },
+  rideStripLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
+  rideDot: { width: 8, height: 8, borderRadius: 4 },
+  rideStripLabel: { fontSize: 13, fontWeight: '600', color: '#212121', flex: 1 },
+  rideStripEnd: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 12 },
+  rideStripEndText: { fontSize: 13, fontWeight: '700', color: '#FF5252' },
+  // Search results
   searchResultsContainer: {
     backgroundColor: 'white', borderRadius: 16, marginTop: 6, maxHeight: 260,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 6, overflow: 'hidden',
@@ -916,6 +1024,26 @@ const styles = StyleSheet.create({
   searchResultTextContainer: { flex: 1 },
   searchResultMain: { fontSize: 15, fontWeight: '600', color: '#212121' },
   searchResultSecondary: { fontSize: 12, color: '#757575', marginTop: 2 },
+  // No-ride card
+  noRideCard: {
+    position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 80, left: 16, right: 72,
+    backgroundColor: 'white', borderRadius: 20, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 6,
+  },
+  noRideTitle: { fontSize: 15, fontWeight: '700', color: '#212121', marginBottom: 2 },
+  noRideSubtitle: { fontSize: 12, color: '#9E9E9E', marginBottom: 12 },
+  noRideActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  quickRideBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FF6D00', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20,
+  },
+  quickRideBtnText: { color: 'white', fontSize: 13, fontWeight: '700' },
+  tripRideBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#E3F2FD', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20,
+    maxWidth: 160,
+  },
+  tripRideBtnText: { color: '#2196F3', fontSize: 13, fontWeight: '700', flex: 1 },
   // Route preview
   routePreviewPanel: {
     position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 80, left: 16, right: 16,

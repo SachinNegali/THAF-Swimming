@@ -1,15 +1,14 @@
-import { DATE_OPTIONS } from '@/dummy-data/journeys';
 import { PlacePrediction, usePlacesSearch } from '@/hooks/usePlacesSearch';
 import React, { useCallback } from 'react';
 import {
-    ActivityIndicator,
-    Keyboard,
-    StyleSheet,
-    Text,
-    TextInput,
-    ToastAndroid,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Keyboard,
+  StyleSheet,
+  Text,
+  TextInput,
+  ToastAndroid,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
@@ -35,6 +34,13 @@ export interface TripFilterFormProps {
   onFromPlaceSelected?: (place: SelectedPlace) => void;
   /** Called when a TO place is selected from autocomplete */
   onToPlaceSelected?: (place: SelectedPlace) => void;
+  /**
+   * When provided, renders a "Search" button at the bottom and calls this on press.
+   * NOT passed from tripForm — so tripForm behaviour is completely unchanged.
+   */
+  onSearch?: () => void;
+  /** Shows a loading spinner on the search button while the query is in-flight. */
+  isSearchLoading?: boolean;
 }
 
 const formatDate = (iso: string): string => {
@@ -59,6 +65,8 @@ export default function TripFilterForm({
   onDatePress,
   onFromPlaceSelected,
   onToPlaceSelected,
+  onSearch,
+  isSearchLoading = false,
 }: TripFilterFormProps) {
   // ── Two separate search instances ─────────────────────
   const fromSearch = usePlacesSearch();
@@ -108,6 +116,7 @@ export default function TripFilterForm({
     [toSearch.selectPlace, setToLocation, onToPlaceSelected],
   );
 
+  console.log("onSearch...", onSearch)
   return (
     <View>
       {/* FROM / TO */}
@@ -255,7 +264,7 @@ export default function TripFilterForm({
             </View>
           </TouchableOpacity>
         </View>
-        <View style={styles.pillsContainer}>
+        {/* <View style={styles.pillsContainer}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsScroll}>
             {DATE_OPTIONS.map((opt) => (
               <TouchableOpacity 
@@ -267,8 +276,26 @@ export default function TripFilterForm({
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </View>
+        </View> */}
       </View>
+
+      {/* Search button — only rendered in filter/discovery mode, not in trip creation */}
+      {onSearch && (
+        <View style={styles.searchButtonSection}>
+          <TouchableOpacity
+            style={[styles.searchButton, isSearchLoading && styles.searchButtonLoading]}
+            onPress={onSearch}
+            disabled={isSearchLoading}
+            activeOpacity={0.8}
+          >
+            {isSearchLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.searchButtonText}>Search Trips</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -452,5 +479,26 @@ const styles = StyleSheet.create({
   },
   pillTextActive: {
     color: '#fff',
+  },
+  searchButtonSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  searchButton: {
+    backgroundColor: '#0f172a',
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchButtonLoading: {
+    opacity: 0.7,
+  },
+  searchButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.3,
   },
 });

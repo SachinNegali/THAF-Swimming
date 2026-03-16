@@ -2,7 +2,7 @@ import CalendarBottomSheet from '@/components/explore/CalendarBottomSheet';
 import { TripCard } from '@/components/explore/TripCard';
 import TripFilterForm from '@/components/explore/TripFilterForm';
 import { JOURNEYS } from '@/dummy-data/journeys';
-import { useCreateTrip, useTrips } from '@/hooks/api/useTrips';
+import { useCreateTrip, useFilterTrips, useTrips, type TripFilterParams } from '@/hooks/api/useTrips';
 import type { CreateTripRequest } from '@/types/api';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -72,23 +72,54 @@ const App: React.FC = () => {
   const [searchCalOpen, setSearchCalOpen] = useState(false);
 
   // ─── API hooks ──────────────────────────────────────────
+  // activeFilterParams drives useFilterTrips — null = idle (show user's own trips)
+  const [activeFilterParams, setActiveFilterParams] = useState<TripFilterParams | null>(null);
+
   const {
     data: tripsResponse,
-    isLoading,
+    isLoading: isLoadingMyTrips,
     error: tripsError,
     refetch,
   } = useTrips();
 
+  const {
+    data: filterResponse,
+    isLoading: isLoadingFilter,
+    error: filterError,
+  } = useFilterTrips(activeFilterParams);
+
   const createTripMutation = useCreateTrip();
-  console.log("tripsResponse", tripsResponse, isLoading, tripsError);
+
+  const isLoading = activeFilterParams ? isLoadingFilter : isLoadingMyTrips;
+  const isFilterActive = activeFilterParams !== null;
+
   /**
-   * Use API trips when available, fall back to dummy JOURNEYS.
-   * API trips are mapped to the journey format TripCard expects.
+   * When a filter is active: show filtered results.
+   * Otherwise: show the user's own trips, falling back to dummy data.
    */
-  const apiTrips = (tripsResponse as any)?.trips;
-  const journeys = apiTrips && apiTrips.length > 0
-    ? apiTrips.map(mapTripToJourney)
-    : JOURNEYS;
+  const journeys = (() => {
+    if (isFilterActive) {
+      const filtered = filterResponse?.trips ?? [];
+      return filtered.map(mapTripToJourney);
+    }
+    const apiTrips = (tripsResponse as any)?.trips;
+    return apiTrips && apiTrips.length > 0 ? apiTrips.map(mapTripToJourney) : JOURNEYS;
+  })();
+
+  const handleSearch = useCallback(() => {
+    // At least one field must be filled before firing the query
+    if (!searchFrom && !searchTo && !searchStart) return;
+    setActiveFilterParams({
+      from: searchFrom || undefined,
+      to: searchTo || undefined,
+      startDate: searchStart || undefined,
+      endDate: searchEnd || undefined,
+    });
+  }, [searchFrom, searchTo, searchStart, searchEnd]);
+
+  const clearFilter = useCallback(() => {
+    setActiveFilterParams(null);
+  }, []);
 
   /**
    * Create a new trip via the API.
@@ -192,6 +223,8 @@ const App: React.FC = () => {
             setSearchCalMode(mode);
             setSearchCalOpen(true);
           }}
+          onSearch={handleSearch}
+          isSearchLoading={isLoadingFilter}
         />
 
         <TouchableOpacity onPress={toggleHeader} style={styles.handleArea}>
@@ -207,7 +240,16 @@ const App: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.listHeader}>
-          <Text style={styles.sectionTitle}>Available Journeys</Text>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {isFilterActive ? 'Search Results' : 'My Journeys'}
+            </Text>
+            {isFilterActive && (
+              <TouchableOpacity onPress={clearFilter}>
+                <Text style={styles.clearFilterText}>✕ Clear filter</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <View style={styles.resultsBadge}>
             <Text style={styles.resultsText}>
               {isLoading ? '...' : `${journeys.length} RESULTS`}
@@ -219,23 +261,40 @@ const App: React.FC = () => {
         {isLoading && (
           <View style={styles.centeredContainer}>
             <ActivityIndicator size="large" color="#0f172a" />
-            <Text style={styles.loadingText}>Loading trips...</Text>
+            <Text style={styles.loadingText}>
+              {isFilterActive ? 'Searching trips...' : 'Loading trips...'}
+            </Text>
           </View>
         )}
 
-        {/* Error state with retry */}
-        {tripsError && !isLoading && (
+        {/* Error state */}
+        {(tripsError || filterError) && !isLoading && (
           <View style={styles.errorBanner}>
             <Text style={styles.errorText}>
-              Failed to load trips. Showing saved journeys.
+              {filterError
+                ? 'Search failed. Please try again.'
+                : 'Failed to load trips. Showing saved journeys.'}
             </Text>
-            <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
+            <TouchableOpacity
+              onPress={() => (isFilterActive ? handleSearch() : refetch())}
+              style={styles.retryButton}
+            >
               <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Trip cards — API data or fallback dummy data */}
+        {/* Empty state for filter with no results */}
+        {isFilterActive && !isLoading && !filterError && journeys.length === 0 && (
+          <View style={styles.centeredContainer}>
+            <Text style={styles.loadingText}>No trips found for your search.</Text>
+            <TouchableOpacity onPress={clearFilter} style={[styles.retryButton, { marginTop: 12 }]}>
+              <Text style={styles.retryText}>Show my trips</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Trip cards */}
         {!isLoading &&
           journeys.map((journey: any) => (
             <TripCard key={journey.id} journey={journey} />
@@ -497,6 +556,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#0f172a',
+  },
+  clearFilterText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+    marginTop: 2,
   },
   resultsBadge: {
     backgroundColor: '#f1f5f9',

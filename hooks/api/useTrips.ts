@@ -12,6 +12,14 @@ import type {
 } from '@/types/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+// ─── Filter params type ──────────────────────────────────
+export interface TripFilterParams {
+  from?: string;
+  to?: string;
+  startDate?: string; // ISO date string
+  endDate?: string;
+}
+
 // ─── Queries ────────────────────────────────────────────
 
 /**
@@ -232,5 +240,34 @@ export function useRemoveTripParticipant() {
       qc.setQueryData(queryKeys.trips.detail(updatedTrip.id), updatedTrip);
       qc.invalidateQueries({ queryKey: queryKeys.trips.lists() });
     },
+  });
+}
+
+/**
+ * Filter/search trips by from, to, startDate, endDate.
+ * Calls GET /trip/filter — only fires when params is non-null.
+ * Pass null to keep the query idle (shows user's own trips instead).
+ */
+export function useFilterTrips(params: TripFilterParams | null) {
+  return useQuery({
+    queryKey: ['trips', 'filter', params],
+    queryFn: async () => {
+      try {
+        const qs = new URLSearchParams();
+        if (params?.from)      qs.set('from', params.from);
+        if (params?.to)        qs.set('to', params.to);
+        if (params?.startDate) qs.set('startDate', params.startDate);
+        if (params?.endDate)   qs.set('endDate', params.endDate);
+
+        const response = await apiClient.get<{ trips: Trip[]; pagination: any }>(
+          `${endpoints.trips.filter}?${qs.toString()}`
+        );
+        return response.data;
+      } catch (error) {
+        logApiError(error, 'useFilterTrips');
+        throw new Error(parseApiError(error));
+      }
+    },
+    enabled: params !== null,
   });
 }

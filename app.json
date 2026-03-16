@@ -19,8 +19,11 @@
         "NSLocationWhenInUseUsageDescription": "This app needs your location to show your position on the map.",
         "UIBackgroundModes": [
           "location",
+          "fetch",
+          "location",
           "fetch"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

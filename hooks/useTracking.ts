@@ -6,6 +6,10 @@
  *
  * GPS location is fetched INDEPENDENTLY of WebSocket so the map
  * always loads even when the server is unreachable.
+ *
+ * Fallback: after MAX_WS_RECONNECT_BEFORE_POLL consecutive failures the hook
+ * automatically activates HTTP long-polling. When WebSocket reconnects
+ * successfully, polling is stopped and WS resumes as primary transport.
  */
 
 import * as Location from 'expo-location';
@@ -17,6 +21,15 @@ import {
   encodeLocationUpdate,
   LocationUpdate,
 } from '../services/tracking/binaryProtocol';
+import { usePollingFallback } from './usePollingFallback';
+
+// ─── Constants ───────────────────────────────────────────
+/**
+ * Number of consecutive WS close events before activating the long-poll
+ * fallback. At exponential backoff (1 s, 2 s, 4 s, 8 s, 16 s) this
+ * corresponds to ~31 s of retrying before switching transports.
+ */
+const MAX_WS_RECONNECT_BEFORE_POLL = 2;
 
 // ─── Types ───────────────────────────────────────────────
 export interface PeerLocation extends LocationUpdate {
@@ -34,6 +47,7 @@ export interface UseTrackingOptions {
 
 export interface UseTrackingReturn {
   isConnected: boolean;
+  isPolling: boolean;
   peerLocations: Map<number, PeerLocation>;
   myLocation: Location.LocationObject | null;
   groupSize: number;
@@ -78,11 +92,61 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
   const myLocationRef = useRef<Location.LocationObject | null>(null);
   useEffect(() => { myLocationRef.current = myLocation; }, [myLocation]);
 
+  // ─── Shared location-update handler (WS + polling use the same path) ──────
+  const handleLocationUpdate = useCallback((update: LocationUpdate) => {
+    setPeerLocations((prev) => {
+      const next = new Map(prev);
+      next.set(update.userId, { ...update, receivedAt: Date.now() });
+      return next;
+    });
+  }, []);
+
+  // Keep handleLocationUpdate accessible inside WS callbacks without re-creating connect
+  const handleLocationUpdateRef = useRef(handleLocationUpdate);
+  handleLocationUpdateRef.current = handleLocationUpdate;
+
+  // ─── Polling fallback ────────────────────────────────
+  // Derive HTTP base URL from wsUrl: wss:// → https://, ws:// → http://
+  const pollBaseUrl = wsUrl
+    .replace(/^wss:\/\//, 'https://')
+    .replace(/^ws:\/\//, 'http://');
+
+  const getLocation = useCallback(() => {
+    const loc = myLocationRef.current;
+    if (!loc) return null;
+    return {
+      lat: loc.coords.latitude,
+      lng: loc.coords.longitude,
+      speed: Math.round((loc.coords.speed ?? 0) * 3.6),
+      bearing: Math.round(loc.coords.heading ?? 0),
+    };
+  }, []);
+
+  const { isPolling, startPolling, stopPolling, error: pollError } = usePollingFallback({
+    pollBaseUrl,
+    numericUserId,
+    updateIntervalMs,
+    getLocation,
+    onLocationUpdate: handleLocationUpdate,
+  });
+
+  // Expose polling controls to WS callbacks via refs (stable, no dep issues)
+  const startPollingRef = useRef(startPolling);
+  startPollingRef.current = startPolling;
+  const stopPollingRef = useRef(stopPolling);
+  stopPollingRef.current = stopPolling;
+  const isPollingRef = useRef(isPolling);
+  isPollingRef.current = isPolling;
+
+  // Surface polling errors into the unified error state
+  useEffect(() => {
+    if (pollError) setError(pollError.message);
+  }, [pollError]);
+
   // ═══════════════════════════════════════════════════════
-  // 1. GPS — runs independently of WebSocket
+  // 1. GPS — always on, independent of WebSocket / ride mode
   // ═══════════════════════════════════════════════════════
   useEffect(() => {
-    if (!enabled) return;
     if (!Location || !Location.requestForegroundPermissionsAsync) {
       setError('Location module is not available');
       return;
@@ -133,7 +197,7 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
       locationSubRef.current?.remove();
       locationSubRef.current = null;
     };
-  }, [enabled, updateIntervalMs]);
+  }, [updateIntervalMs]);
 
   // ═══════════════════════════════════════════════════════
   // 2. WS send-loop — forwards latest GPS over the socket
@@ -200,16 +264,18 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
       setError(null);
       reconnectAttempts.current = 0;
       startSendLoop(ws);
+
+      // WS is back — stop polling fallback if it was active
+      if (isPollingRef.current) {
+        console.log('[Tracking] WebSocket restored, stopping poll fallback');
+        stopPollingRef.current();
+      }
     };
 
     ws.onmessage = (event: MessageEvent) => {
       if (event.data instanceof ArrayBuffer && event.data.byteLength === 40) {
         const update = decodeLocationUpdate(event.data);
-        setPeerLocations((prev) => {
-          const next = new Map(prev);
-          next.set(update.userId, { ...update, receivedAt: Date.now() });
-          return next;
-        });
+        handleLocationUpdateRef.current(update);
       } else if (typeof event.data === 'string') {
         try {
           const msg = JSON.parse(event.data);
@@ -224,25 +290,37 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
     };
 
     ws.onerror = (e: any) => {
-      // React Native's WS error event has a `message` property
       const errMsg = e?.message || 'unknown error';
       console.warn('[Tracking] WS error:', errMsg, e);
       setError(`WebSocket error: ${errMsg}`);
     };
 
     ws.onclose = (e: any) => {
-      console.log('[Tracking] WS closed — code:', e?.code, 'reason:', e?.reason, 'disposed:', disposedRef.current);
+      console.log(
+        '[Tracking] WS closed — code:', e?.code,
+        'reason:', e?.reason,
+        'attempts:', reconnectAttempts.current,
+        'disposed:', disposedRef.current,
+      );
       setIsConnected(false);
       stopSendLoop();
 
-      // Only reconnect if we weren't intentionally disposed
       if (!disposedRef.current && optionsRef.current.enabled) {
-        const delay = Math.min(1000 * 2 ** reconnectAttempts.current, 30_000);
-        console.log(`[Tracking] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1})`);
-        reconnectTimeoutRef.current = setTimeout(() => {
-          reconnectAttempts.current++;
-          connect();
-        }, delay);
+        if (reconnectAttempts.current >= MAX_WS_RECONNECT_BEFORE_POLL) {
+          // Max retries exhausted — activate long-poll fallback
+          if (!isPollingRef.current) {
+            console.log('[Tracking] WebSocket failed after max retries, falling back to long-polling');
+            const { accessToken: tok, groupId: gid } = optionsRef.current;
+            startPollingRef.current(gid, tok);
+          }
+        } else {
+          const delay = Math.min(1000 * 2 ** reconnectAttempts.current, 30_000);
+          console.log(`[Tracking] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1})`);
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectAttempts.current++;
+            connect();
+          }, delay);
+        }
       }
     };
   }, [startSendLoop, stopSendLoop]);
@@ -259,6 +337,7 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
       reconnectTimeoutRef.current = null;
     }
     stopSendLoop();
+    stopPollingRef.current(); // stop polling fallback if active
 
     if (wsRef.current) {
       wsRef.current.onclose = null;  // remove handler before close to avoid stale callback
@@ -283,6 +362,8 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'active' && optionsRef.current.enabled) {
         disposedRef.current = false; // allow reconnect when coming back
+        reconnectAttempts.current = 0; // reset attempts so WS gets a fresh chance
+        stopPollingRef.current();      // stop any active polling first
         connect();
       } else if (state === 'background') {
         disconnect();
@@ -295,5 +376,5 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
     };
   }, [enabled, connect, disconnect]);
 
-  return { isConnected, peerLocations, myLocation, groupSize, error, connect, disconnect };
+  return { isConnected, isPolling, peerLocations, myLocation, groupSize, error, connect, disconnect };
 }

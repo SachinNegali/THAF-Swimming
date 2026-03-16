@@ -23,6 +23,7 @@ export const endpoints = {
   // ─── Trips ─────────────────────────────────────────────
   trips: {
     base: '/trip',
+    filter: '/trip/filter',
     byId: (id: string) => `/trip/${id}`,
     create: '/trip',
     update: (id: string) => `/trip/${id}`,
