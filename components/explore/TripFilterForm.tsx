@@ -1,3 +1,4 @@
+import { DATE_OPTIONS } from '@/dummy-data/journeys';
 import { PlacePrediction, usePlacesSearch } from '@/hooks/usePlacesSearch';
 import React, { useCallback } from 'react';
 import {
@@ -264,7 +265,7 @@ export default function TripFilterForm({
             </View>
           </TouchableOpacity>
         </View>
-        {/* <View style={styles.pillsContainer}>
+        <View style={styles.pillsContainer}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsScroll}>
             {DATE_OPTIONS.map((opt) => (
               <TouchableOpacity 
@@ -276,7 +277,7 @@ export default function TripFilterForm({
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </View> */}
+        </View>
       </View>
 
       {/* Search button — only rendered in filter/discovery mode, not in trip creation */}

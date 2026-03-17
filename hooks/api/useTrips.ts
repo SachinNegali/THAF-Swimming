@@ -32,11 +32,12 @@ export function useTrips(filters?: TripFilters) {
     queryKey: queryKeys.trips.list(filters as Record<string, unknown>),
     queryFn: async () => {
       try {
-        console.log("THE FUCK IS BASE URL....", endpoints.trips.base)
         const response = await apiClient.get<PaginatedResponse<Trip>>(
           endpoints.trips.base,
           { params: filters }
         );
+        const some = response?.data?.trips?.filter(x => x.description == "maybe")
+        console.log("MAYBEEE", some?.[0]?.destination, some?.[0]?.startLocation, some?.[0]?.endLocation, some?.[0]?.startDate, some?.[0]?.endDate)
         return response.data;
       } catch (error) {
         logApiError(error, 'useTrips');

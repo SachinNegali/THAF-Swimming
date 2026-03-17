@@ -46,11 +46,6 @@ export function AppProviders({ children }: AppProvidersProps) {
           {/* </RealtimeProvider> */}
           </NotificationProvider>
         </AuthProvider>
-          {/* <NotificationProvider>
-          <RealtimeProvider>
-            {children}
-          </RealtimeProvider>
-           </NotificationProvider> */}
       </QueryClientProvider>
     </ReduxProvider>
   );

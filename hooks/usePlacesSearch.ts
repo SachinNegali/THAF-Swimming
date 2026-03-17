@@ -79,6 +79,8 @@ export function usePlacesSearch(
         )}&key=${GOOGLE_MAPS_API_KEY}${bias}&components=country:${country}`;
         const res = await fetch(url);
         const data = await res.json();
+        console.log("THE FUCK IS DATA.... SEARCH PLACES", data?.predictions?.[0])
+        // getPlaceDetails(data?.predictions?.[0]?.place_id)
         if (data.status === 'OK' && data.predictions) {
           setSearchResults(data.predictions.slice(0, maxResults));
           setShowSearchResults(true);
@@ -117,6 +119,7 @@ export function usePlacesSearch(
         const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry,name&key=${GOOGLE_MAPS_API_KEY}`;
         const res = await fetch(url);
         const data = await res.json();
+        console.log("THE FUCK IS DATA.... SEARCH PLACES Details", data?.result?.geometry?.location, data?.result?.geometry)
         if (data.status === 'OK' && data.result?.geometry?.location) {
           const { lat, lng } = data.result.geometry.location;
           return {

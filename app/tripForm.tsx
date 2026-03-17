@@ -30,7 +30,9 @@ export default function TripFormScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [fromLocation, setFromLocation] = useState('');
+  const [fromCoords, setFromCoords] = useState<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
   const [toLocation, setToLocation] = useState('');
+  const [toCoords, setToCoords] = useState<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [calendarMode, setCalendarMode] = useState<'start' | 'end'>('start');
@@ -42,7 +44,15 @@ export default function TripFormScreen() {
       setTitle(existingTrip.title);
       setDescription(existingTrip.description || '');
       setFromLocation(existingTrip.startLocation?.name || '');
+      setFromCoords({
+        lat: existingTrip.startLocation?.coordinates?.lat ?? 0,
+        lng: existingTrip.startLocation?.coordinates?.lng ?? 0,
+      });
       setToLocation(existingTrip.destination?.name || '');
+      setToCoords({
+        lat: existingTrip.destination?.coordinates?.lat ?? 0,
+        lng: existingTrip.destination?.coordinates?.lng ?? 0,
+      });
       // Backend returns full ISO, we need YYYY-MM-DD for TripFilterForm
       setStartDate(existingTrip.startDate?.split('T')[0] || '');
       setEndDate(existingTrip.endDate?.split('T')[0] || '');
@@ -77,12 +87,12 @@ export default function TripFormScreen() {
       description: description.trim() || undefined,
       startLocation: {
         type: 'city',
-        coordinates: { lat: 0, lng: 0 },
+        coordinates: fromCoords,
         name: fromLocation.trim(),
       },
       destination: {
         type: 'city',
-        coordinates: { lat: 0, lng: 0 },
+        coordinates: toCoords,
         name: toLocation.trim(),
       },
       startDate: new Date(startDate + 'T00:00:00').toISOString(),
@@ -119,7 +129,9 @@ export default function TripFormScreen() {
     title,
     description,
     fromLocation,
+    fromCoords,
     toLocation,
+    toCoords,
     startDate,
     endDate,
     createTrip,
@@ -172,9 +184,9 @@ export default function TripFormScreen() {
 
         <TripFilterForm
           fromLocation={fromLocation}
-          setFromLocation={setFromLocation}
+          setFromLocation={(v) => { setFromLocation(v); if (!v) setFromCoords({ lat: 0, lng: 0 }); }}
           toLocation={toLocation}
-          setToLocation={setToLocation}
+          setToLocation={(v) => { setToLocation(v); if (!v) setToCoords({ lat: 0, lng: 0 }); }}
           startDate={startDate}
           setStartDate={setStartDate}
           endDate={endDate}
@@ -183,6 +195,8 @@ export default function TripFormScreen() {
             setCalendarMode(mode);
             setCalendarOpen(true);
           }}
+          onFromPlaceSelected={(place) => setFromCoords({ lat: place.lat, lng: place.lng })}
+          onToPlaceSelected={(place) => setToCoords({ lat: place.lat, lng: place.lng })}
         />
 
         <Button
