@@ -1,6 +1,7 @@
 import { PublicProfileScreen } from '@/components/profile/publicProfile';
 import { MOCK_USER } from '@/dummy-data/journeys';
 import { FlashList } from '@shopify/flash-list';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { memo, useCallback, useState } from 'react';
 import {
   Dimensions,
@@ -249,6 +250,8 @@ const JoinButton = memo(() => {
 export default function TripDetailsScreen() {
   const backgroundColor = useThemeColor({}, 'background');
   const borderColor = useThemeColor({}, 'border');
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const router = useRouter();
 
   // Flat data array for FlashList (FlashList doesn't support sections)
 
@@ -260,6 +263,7 @@ export default function TripDetailsScreen() {
     { type: 'routeTiming' },
     { type: 'divider2' },
     { type: 'description' },
+    { type: 'startTripButton' },
     { type: 'divider3' },
     { type: 'organizer' },
     { type: 'divider4' },
@@ -282,6 +286,18 @@ export default function TripDetailsScreen() {
         return <RouteTiming />;
       case 'description':
         return <Description />;
+      case 'startTripButton':
+        return (
+          <TouchableOpacity
+            style={styles.startTripButton}
+            activeOpacity={0.85}
+            onPress={() =>
+              router.push(`/(tabs)/explore?tripId=${id ?? ''}&startRide=1` as any)
+            }
+          >
+            <Text style={styles.startTripButtonText}>Start Trip</Text>
+          </TouchableOpacity>
+        );
       case 'organizer':
         return <OrganizerCard setIsOpen={setIsOpen}/>;
       case 'questions':
@@ -291,7 +307,7 @@ export default function TripDetailsScreen() {
       default:
         return null;
     }
-  }, [borderColor]);
+  }, [borderColor, id, router]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]}>
@@ -490,6 +506,26 @@ const styles = StyleSheet.create({
   askButtonText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+
+  // Start Trip Button
+  startTripButton: {
+    width: '100%',
+    paddingVertical: SPACING.md,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: SPACING.md,
+    backgroundColor: '#0f172a',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  startTripButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
   },
 
   // Join Button

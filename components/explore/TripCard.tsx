@@ -333,8 +333,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
         <View style={styles.buttonContainer}>
           {/* <TouchableOpacity style={styles.primaryButton} onPress={() => router.navigate('/profile')}> */}
             {/* <TouchableOpacity style={styles.primaryButton} onPress={() => router.navigate('/editProfile')}> */}
-                <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/tripDetails')}>
-            
+                <TouchableOpacity style={styles.primaryButton} onPress={() => router.push(`/tripDetails?id=${journey?.id}`)}>
+
             <Text style={styles.primaryButtonText}>View Details</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton}>
@@ -346,7 +346,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
   }
 
   return (
-    <TouchableOpacity activeOpacity={0.7} style={styles.card} onPress={() => router.push('/tripDetails')}>
+    <TouchableOpacity activeOpacity={0.7} style={styles.card} onPress={() => router.push(`/tripDetails?id=${journey?.id}`)}>
       <View style={styles.cardHeader}>
         <Text style={styles.title}>{journey?.title}</Text>
         <Text style={styles.labelSmall}>{journey?.createdDate}</Text>

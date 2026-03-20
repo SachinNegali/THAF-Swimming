@@ -91,6 +91,10 @@ export function resolveNotificationRoute(data: NotificationData): string {
     case 'trip_update':
       return data.tripId ? `/tripDetails?id=${data.tripId}` : '/(tabs)';
 
+    // Backend fires this when organiser hits "Start Trip" → take members straight to the map
+    case 'trip_started':
+      return data.tripId ? `/(tabs)/explore?tripId=${data.tripId}` : '/(tabs)/explore';
+
     case 'group_invite':
     case 'group_update':
       return data.groupId ? `/groupInfo?id=${data.groupId}` : '/(tabs)';

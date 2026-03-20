@@ -17,9 +17,10 @@ import {
 } from 'react-native';
 import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
+import { useLocalSearchParams } from 'expo-router';
 import { MapFAB, QuickActionsSheet, RidersBottomSheet } from '../../components/ride';
 import { Buddy } from '../../components/ride/types';
-import { useTrips } from '../../hooks/api/useTrips';
+import { useTrip, useTrips, useUpdateTrip } from '../../hooks/api/useTrips';
 import { useTracking } from '../../hooks/useTracking';
 import { objectIdToNumericId } from '../../services/tracking/binaryProtocol';
 import { useAppSelector } from '../../store/hooks';
@@ -106,6 +107,9 @@ export default function BuddyMapExpo() {
   const mapRef = useRef<MapView>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ─── Deep link params (notification tap / "Start Trip" button / QR scan) ──
+  const { tripId: deepLinkTripId, startRide } = useLocalSearchParams<{ tripId?: string; startRide?: string }>();
+
   // ─── Auth state ──────────────────────────────────────
   const accessToken = useAppSelector(selectAccessToken);
   const user = useAppSelector(selectUser);
@@ -124,17 +128,72 @@ export default function BuddyMapExpo() {
     return null;
   }, [rideMode]);
 
-  // ─── Active trip detection ───────────────────────────
-  const { data: activeTripsData } = useTrips({ status: 'active' });
+  // ─── Start trip API (organiser only — notifies all participants) ─────────
+  const updateTrip = useUpdateTrip();
+  const hasStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (startRide === '1' && deepLinkTripId && !hasStartedRef.current) {
+      hasStartedRef.current = true;
+      // PATCH trip → status: 'active' — backend sends push notifications to all participants
+      updateTrip.mutate(
+        { id: deepLinkTripId, data: { status: 'active' } as any },
+        { onError: (err) => console.warn('[Explore] Failed to start trip:', err.message) }
+      );
+    }
+  }, [startRide, deepLinkTripId]);
+
+  // ─── Deep link: auto-join when opened via notification/QR ─
+  // Fetch trip only when we have a tripId param and aren't already in a session
+  const { data: deepLinkTrip } = useTrip(
+    deepLinkTripId ?? '',
+    !!deepLinkTripId && rideMode.type === 'none',
+  );
+
+  useEffect(() => {
+    if (deepLinkTrip && rideMode.type === 'none') {
+      // User explicitly tapped notification / scanned QR — auto-enter, no prompt
+      setRideMode({ type: 'trip', trip: deepLinkTrip });
+    }
+  }, [deepLinkTrip]);
+
+  // ─── Active trip detection (background polling) ──────
+  const { data: activeTripsData } = useTrips({
+    status: 'active',
+  } as any);
   const serverActiveTrip = activeTripsData?.data?.[0] ?? null;
 
-  // Auto-enter trip mode when the server returns an active trip and we
-  // aren't already in a session (don't clobber a quick ride).
+  // Track previous active trip ID so we only prompt once per new active trip
+  const prevActiveTripIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (serverActiveTrip && rideMode.type === 'none') {
-      setRideMode({ type: 'trip', trip: serverActiveTrip });
+    if (!serverActiveTrip) {
+      prevActiveTripIdRef.current = null;
+      return;
     }
-  }, [serverActiveTrip]);
+    // Only prompt if this is a newly-detected active trip
+    if (
+      serverActiveTrip.id !== prevActiveTripIdRef.current &&
+      rideMode.type === 'none' &&
+      !deepLinkTripId  // don't double-prompt if we already auto-joined via deep link
+    ) {
+      prevActiveTripIdRef.current = serverActiveTrip.id;
+      Alert.alert(
+        'Trip Started!',
+        `"${serverActiveTrip.title}" has started. Join your buddies on the map?`,
+        [
+          { text: 'Later', style: 'cancel' },
+          {
+            text: 'Join Now',
+            onPress: () => setRideMode({ type: 'trip', trip: serverActiveTrip }),
+          },
+        ]
+      );
+    } else if (serverActiveTrip.id !== prevActiveTripIdRef.current) {
+      // Update the ref even if we can't show the alert (already in a ride)
+      prevActiveTripIdRef.current = serverActiveTrip.id;
+    }
+  }, [serverActiveTrip?.id]);
 
   // ─── Ride actions ────────────────────────────────────
   const startQuickRide = useCallback(async () => {

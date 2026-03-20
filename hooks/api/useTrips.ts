@@ -36,7 +36,7 @@ export function useTrips(filters?: TripFilters) {
           endpoints.trips.base,
           { params: filters }
         );
-        const some = response?.data?.trips?.filter(x => x.description == "maybe")
+        const some = (response?.data as any)?.trips?.filter((x: any) => x.description == "maybe")
         console.log("MAYBEEE", some?.[0]?.destination, some?.[0]?.startLocation, some?.[0]?.endLocation, some?.[0]?.startDate, some?.[0]?.endDate)
         return response.data;
       } catch (error) {
@@ -57,9 +57,12 @@ export function useTrip(id: string, enabled = true) {
     queryFn: async () => {
       try {
         const response = await apiClient.get<Trip>(endpoints.trips.byId(id));
+        console.log("THE FUXK IS CREATE DATA....", endpoints.trips.byId(id))
+        console.log("THE FUXK IS CREATE DATA....", response.data, response)
         return response.data;
       } catch (error) {
         logApiError(error, 'useTrip');
+        const e = error as any; console.log("WHAT Error", e, e?.response?.data, e?.response, e?.message);
         throw new Error(parseApiError(error));
       }
     },
