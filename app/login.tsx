@@ -1,6 +1,8 @@
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/providers/AuthContext";
+import { selectIsOnboarded } from "@/store/selectors";
+import { useAppSelector } from "@/store/hooks";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
@@ -18,6 +20,7 @@ export default function LoginScreen() {
   const router = useRouter();
 
   const { signIn, isAuthenticated, isLoading, error } = useAuth();
+  const isOnboarded = useAppSelector(selectIsOnboarded);
 
   // ── Track previous error to only alert on new errors ──
   const prevError = useRef<string | null>(null);
@@ -25,9 +28,9 @@ export default function LoginScreen() {
   // ── Navigate on successful authentication ─────────────
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/(tabs)");
+      router.replace(isOnboarded ? "/(tabs)" : "/onboarding");
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isOnboarded, router]);
 
   // ── Show alert on new errors ──────────────────────────
   useEffect(() => {

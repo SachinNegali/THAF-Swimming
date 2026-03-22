@@ -16,6 +16,7 @@ import {
   setCredentials,
   setInitialized,
 } from '@/store/slices/authSlice';
+import { setOnboarded } from '@/store/slices/appSlice';
 import type { AuthResponse, GoogleAuthRequest } from '@/types/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -72,7 +73,10 @@ export function useGoogleLogin() {
           }),
         );
 
-        // Step 5: Cache user in React Query
+        // Step 5: Set onboarding status based on whether userId is set
+        dispatch(setOnboarded(!!authData.user.userId));
+
+        // Step 6: Cache user in React Query
         qc.setQueryData(queryKeys.auth.currentUser(), authData.user);
 
         return authData;
@@ -177,7 +181,10 @@ export function useInitializeAuth() {
               })
             );
 
-            // Step 4: Populate Query Cache
+            // Step 4: Set onboarding status based on whether userId is set
+            dispatch(setOnboarded(!!(user as any).userId));
+
+            // Step 5: Populate Query Cache
             qc.setQueryData(queryKeys.auth.currentUser(), user);
           } catch (error) {
             // If verification fails (e.g. 401), the axios interceptor

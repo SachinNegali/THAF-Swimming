@@ -1,5 +1,7 @@
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { selectIsOnboarded } from "@/store/selectors";
+import { useAppSelector } from "@/store/hooks";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
@@ -12,6 +14,7 @@ export default function SplashScreen() {
   const scaleAnim = useRef(new Animated.Value(0.3)).current;
 
   const { isAuthenticated, isInitialized } = useSelector((state: any) => state.auth);
+  const isOnboarded = useAppSelector(selectIsOnboarded);
 
   useEffect(() => {
     // Start animations
@@ -36,7 +39,7 @@ export default function SplashScreen() {
       // Small delay just to let the animation finish or feel natural
       const timer = setTimeout(() => {
         if (isAuthenticated) {
-          router.replace("/(tabs)");
+          router.replace(isOnboarded ? "/(tabs)" : "/onboarding");
         } else {
           router.replace("/login");
         }
@@ -44,7 +47,7 @@ export default function SplashScreen() {
 
       return () => clearTimeout(timer);
     }
-  }, [isInitialized, isAuthenticated]);
+  }, [isInitialized, isAuthenticated, isOnboarded]);
 
   return (
     <View

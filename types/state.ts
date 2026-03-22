@@ -5,6 +5,7 @@
 
 export interface User {
   _id: string;
+  userId?: string;
   fName: string;
   lName: string;
   email: string;

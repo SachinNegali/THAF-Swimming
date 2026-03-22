@@ -149,8 +149,8 @@ export function useSSE(enabled = true) {
     setStatus('connecting');
     console.log('[SSE] Connecting via fetch SSE...');
 
-    const sseUrl = `${API_BASE_URL}${endpoints.sse.stream}?token=${encodeURIComponent(token)}`;
-
+    const sseUrl = `${API_BASE_URL}${endpoints.sse.stream}`;
+    console.log( 'SSE URL...', sseUrl);
     const scheduleReconnect = () => {
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       const delay = Math.min(
@@ -165,9 +165,13 @@ export function useSSE(enabled = true) {
       try {
         const response = await fetch(sseUrl, {
           signal: controller.signal,
-          headers: { Accept: 'text/event-stream' },
+          headers: {
+            Accept: 'text/event-stream',
+            Authorization: `Bearer ${token}`,
+          },
         });
-
+        console.log('SSE response', response);
+        console.log('SSE response', response?.status, response?.statusText, response?.body);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         if (!response.body) throw new Error('No response body');
 

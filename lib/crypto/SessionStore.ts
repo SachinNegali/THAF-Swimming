@@ -14,9 +14,9 @@ import { DoubleRatchet } from './DoubleRatchet';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const SESSION_PREFIX = '@thaf/e2ee/session/';
-const SENDER_KEY_PREFIX = '@thaf/e2ee/senderkey/';
-const SESSION_INDEX_KEY = '@thaf/e2ee/session_index';
+const SESSION_PREFIX = 'thaf_e2ee_session_';
+const SENDER_KEY_PREFIX = 'thaf_e2ee_senderkey_';
+const SESSION_INDEX_KEY = 'thaf_e2ee_session_index';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ const SESSION_INDEX_KEY = '@thaf/e2ee/session_index';
  * Build a storage key for a pairwise session.
  */
 function sessionKey(remoteUserId: string, remoteDeviceId: string): string {
-  return `${SESSION_PREFIX}${remoteUserId}:${remoteDeviceId}`;
+  return `${SESSION_PREFIX}${remoteUserId}_${remoteDeviceId}`;
 }
 
 /**
@@ -35,7 +35,7 @@ function senderKeyKey(
   senderId: string,
   senderDeviceId: string
 ): string {
-  return `${SENDER_KEY_PREFIX}${groupId}:${senderId}:${senderDeviceId}`;
+  return `${SENDER_KEY_PREFIX}${groupId}_${senderId}_${senderDeviceId}`;
 }
 
 /**
@@ -50,19 +50,19 @@ async function setLargeValue(key: string, value: string): Promise<void> {
       keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
     });
     // Clean up any old chunks
-    await SecureStore.deleteItemAsync(`${key}:chunks`);
+    await SecureStore.deleteItemAsync(`${key}_chunks`);
     return;
   }
 
   // Split into chunks
   const chunks = Math.ceil(value.length / CHUNK_SIZE);
-  await SecureStore.setItemAsync(`${key}:chunks`, String(chunks), {
+  await SecureStore.setItemAsync(`${key}_chunks`, String(chunks), {
     keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
   });
 
   for (let i = 0; i < chunks; i++) {
     const chunk = value.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-    await SecureStore.setItemAsync(`${key}:${i}`, chunk, {
+    await SecureStore.setItemAsync(`${key}_${i}`, chunk, {
       keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
     });
   }
@@ -70,7 +70,7 @@ async function setLargeValue(key: string, value: string): Promise<void> {
 
 async function getLargeValue(key: string): Promise<string | null> {
   // Check if it's chunked
-  const chunksStr = await SecureStore.getItemAsync(`${key}:chunks`);
+  const chunksStr = await SecureStore.getItemAsync(`${key}_chunks`);
   if (!chunksStr) {
     // Not chunked, try direct
     return SecureStore.getItemAsync(key);
@@ -79,7 +79,7 @@ async function getLargeValue(key: string): Promise<string | null> {
   const chunks = parseInt(chunksStr, 10);
   let result = '';
   for (let i = 0; i < chunks; i++) {
-    const chunk = await SecureStore.getItemAsync(`${key}:${i}`);
+    const chunk = await SecureStore.getItemAsync(`${key}_${i}`);
     if (!chunk) return null; // Corrupted
     result += chunk;
   }
@@ -87,13 +87,13 @@ async function getLargeValue(key: string): Promise<string | null> {
 }
 
 async function deleteLargeValue(key: string): Promise<void> {
-  const chunksStr = await SecureStore.getItemAsync(`${key}:chunks`);
+  const chunksStr = await SecureStore.getItemAsync(`${key}_chunks`);
   if (chunksStr) {
     const chunks = parseInt(chunksStr, 10);
     for (let i = 0; i < chunks; i++) {
-      await SecureStore.deleteItemAsync(`${key}:${i}`);
+      await SecureStore.deleteItemAsync(`${key}_${i}`);
     }
-    await SecureStore.deleteItemAsync(`${key}:chunks`);
+    await SecureStore.deleteItemAsync(`${key}_chunks`);
   }
   await SecureStore.deleteItemAsync(key);
 }

@@ -6,6 +6,7 @@ import React, { useEffect } from 'react';
 import { Provider as ReduxProvider } from 'react-redux';
 import { AuthProvider } from './AuthContext';
 import { NotificationProvider } from './NotificationProvider';
+import { RealtimeProvider } from './RealtimeProvider';
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -41,9 +42,9 @@ export function AppProviders({ children }: AppProvidersProps) {
         <AuthInitializer />
         <AuthProvider>
          <NotificationProvider>
-          {/* <RealtimeProvider> */}
+          <RealtimeProvider>
             {children}
-          {/* </RealtimeProvider> */}
+          </RealtimeProvider>
           </NotificationProvider>
         </AuthProvider>
       </QueryClientProvider>

@@ -18,25 +18,20 @@ import type {
 } from '@/types/e2ee';
 import { E2EEError, E2EEErrorCode } from '@/types/e2ee';
 import * as SecureStore from 'expo-secure-store';
+import { SodiumCompat, type SodiumCompatType } from './sodium-compat';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const SECURE_STORE_KEY = '@thaf/e2ee/keystore';
+const SECURE_STORE_KEY = 'thaf_e2ee_keystore';
 const PRE_KEY_BATCH_SIZE = 100;
 const PRE_KEY_REPLENISH_THRESHOLD = 25;
 const SIGNED_PRE_KEY_ROTATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-// ─── Sodium Lazy Loader ──────────────────────────────────────────────────────
+// ─── Sodium Compat Loader ────────────────────────────────────────────────────
 
-let _sodium: typeof import('libsodium-wrappers-sumo') | null = null;
-
-async function getSodium() {
-  if (_sodium) return _sodium;
-
-  const sodium = await import('libsodium-wrappers-sumo');
-  await sodium.ready;
-  _sodium = sodium;
-  return sodium;
+// Returns the @noble-backed compat layer — no WASM, works in Hermes/React Native.
+async function getSodium(): Promise<SodiumCompatType> {
+  return SodiumCompat;
 }
 
 // ─── UUID Helper ─────────────────────────────────────────────────────────────

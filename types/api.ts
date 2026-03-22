@@ -59,6 +59,7 @@ export interface LogoutRequest {
 export interface AuthResponse {
   user: {
     _id: string;
+    userId?: string;
     fName: string;
     lName: string;
     email: string;
