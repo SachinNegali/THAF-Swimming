@@ -20,7 +20,7 @@ import type {
 } from '@/types/chat';
 import { FlashList } from '@shopify/flash-list';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -103,83 +103,7 @@ export default function GroupChatScreen() {
   const currentUser = useSelector(selectUser);
   const currentUserId = currentUser?._id ?? '';
 
-  // ─── E2EE availability (checked lazily) ─────────────────
-  const [e2eeReady, setE2eeReady] = useState(false);
-  const [decryptedMessages, setDecryptedMessages] = useState<any[]>([]);
-  const [e2eeLoading, setE2eeLoading] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { CryptoService } = await import('@/lib/crypto');
-        setE2eeReady(CryptoService.isInitialized());
-      } catch {
-        // Native modules unavailable — stay on plaintext
-        setE2eeReady(false);
-      }
-    })();
-  }, []);
-
-  // Fetch encrypted messages lazily when e2ee is ready
-  useEffect(() => {
-    if (!e2eeReady || !groupId) return;
-
-    let cancelled = false;
-    setE2eeLoading(true);
-
-    (async () => {
-      try {
-        const { apiClient } = await import('@/lib/api/client');
-        const { endpoints } = await import('@/lib/api/endpoints');
-        const { CryptoService } = await import('@/lib/crypto');
-
-        const response = await apiClient.get(
-          endpoints.encryptedMessages.list(groupId),
-        );
-        const encrypted = response.data as any[];
-        const decrypted = [];
-
-        for (const msg of encrypted) {
-          try {
-            const { plaintext } = await CryptoService.decryptDirectMessage(
-              msg.senderId,
-              msg.senderDeviceId,
-              {
-                senderDeviceId: msg.senderDeviceId,
-                type: msg.type,
-                ciphertext: msg.ciphertext,
-                ephemeralKey: msg.ephemeralKey,
-                oneTimePreKeyId: msg.oneTimePreKeyId,
-                messageNumber: msg.messageNumber,
-                previousChainLength: msg.previousChainLength,
-                attachments: msg.attachments ?? [],
-              },
-            );
-            decrypted.push({ ...msg, content: plaintext });
-          } catch {
-            decrypted.push({
-              ...msg,
-              content: '🔒 Unable to decrypt this message',
-            });
-          }
-        }
-
-        if (!cancelled) {
-          setDecryptedMessages(decrypted);
-          setE2eeLoading(false);
-        }
-      } catch (err) {
-        console.warn('[GroupChat] Encrypted fetch failed:', err);
-        if (!cancelled) setE2eeLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [e2eeReady, groupId]);
-
-  // ─── Data Fetching (plaintext) ──────────────────────────
+  // ─── Data Fetching ─────────────────────────────────────
   const { data: group, isLoading: groupLoading } = useGroup(
     groupId,
     !!groupId,
@@ -190,7 +114,7 @@ export default function GroupChatScreen() {
     isLoading: plainLoading,
     fetchNextPage,
     hasNextPage,
-  } = useGroupMessages(groupId, undefined, !!groupId && !e2eeReady);
+  } = useGroupMessages(groupId, undefined, !!groupId);
 
   // Mark as read
   const markRead = useMarkMessageAsRead();
@@ -199,24 +123,7 @@ export default function GroupChatScreen() {
   const flattenedData = useMemo(() => {
     let items: ListItem[] = [];
 
-    if (e2eeReady && decryptedMessages.length > 0) {
-      items = decryptedMessages.map((msg) => {
-        const isMe = msg.senderId === currentUserId;
-        return {
-          id: msg.id ?? msg._id,
-          type: msg.type === 'image' ? 'image' : 'text',
-          timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-          senderId: msg.senderId,
-          senderName: isMe ? 'Me' : msg.senderId,
-          isMe,
-          content: msg.content,
-          ...(msg.type === 'image' ? { imageUrl: msg.content } : {}),
-        } as ListItem;
-      });
-    } else if (plainPages?.pages) {
+    if (plainPages?.pages) {
       const allMessages = plainPages.pages.flatMap((page) => page.data);
       items = allMessages.map((msg) =>
         mapMessageToListItem(msg, currentUserId),
@@ -224,9 +131,9 @@ export default function GroupChatScreen() {
     }
 
     return insertDateHeaders(items);
-  }, [plainPages, decryptedMessages, e2eeReady, currentUserId]);
+  }, [plainPages, currentUserId]);
 
-  const isLoading = groupLoading || plainLoading || e2eeLoading;
+  const isLoading = groupLoading || plainLoading;
 
   // ─── Render ────────────────────────────────────────────
   const renderItem = useCallback(({ item }: { item: ListItem }) => {
@@ -268,7 +175,7 @@ export default function GroupChatScreen() {
           >
             <ActivityIndicator size="large" />
             <Text style={{ marginTop: SPACING.sm, color: mutedColor }}>
-              {e2eeReady ? 'Decrypting messages…' : 'Loading messages…'}
+              Loading messages…
             </Text>
           </View>
         ) : (
@@ -281,7 +188,7 @@ export default function GroupChatScreen() {
               paddingBottom: 100,
             }}
             onEndReached={() => {
-              if (hasNextPage && !e2eeReady) {
+              if (hasNextPage) {
                 fetchNextPage();
               }
             }}

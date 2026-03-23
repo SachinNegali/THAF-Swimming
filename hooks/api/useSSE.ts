@@ -210,6 +210,7 @@ export function useSSE(enabled = true) {
           scheduleReconnect();
         }
       } catch (err: any) {
+        console.log("WHY ERROR SSE", err)
         if (controller.signal.aborted) return; // intentional teardown
 
         console.warn('[SSE] fetch error:', err?.message ?? err);

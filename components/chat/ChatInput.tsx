@@ -1,7 +1,7 @@
 import { Colors, SPACING } from '@/constants/theme';
 import { useSendGroupMessage } from '@/hooks/api/useChats';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useState } from 'react';
 import {
   Platform,
   StyleSheet,
@@ -18,7 +18,6 @@ interface ChatInputProps {
 const ChatInput = memo(({ groupId }: ChatInputProps) => {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const [e2eeReady, setE2eeReady] = useState(false);
 
   const bgColor = useThemeColor({}, 'background');
   const inputBg = useThemeColor({}, 'surfaceLight');
@@ -28,19 +27,7 @@ const ChatInput = memo(({ groupId }: ChatInputProps) => {
   const borderColor = useThemeColor({}, 'border');
   const placeholderColor = useThemeColor({}, 'textDim');
 
-  const sendPlain = useSendGroupMessage();
-
-  // Check E2EE availability lazily (no static crypto import)
-  useEffect(() => {
-    (async () => {
-      try {
-        const { CryptoService } = await import('@/lib/crypto');
-        setE2eeReady(CryptoService.isInitialized());
-      } catch {
-        setE2eeReady(false);
-      }
-    })();
-  }, []);
+  const sendMessage = useSendGroupMessage();
 
   const handleSend = async () => {
     const trimmed = text.trim();
@@ -50,32 +37,12 @@ const ChatInput = memo(({ groupId }: ChatInputProps) => {
     setText('');
 
     try {
-      if (e2eeReady) {
-        // E2EE path: encrypt via SenderKey then POST (loaded dynamically)
-        const { CryptoService } = await import('@/lib/crypto');
-        const { apiClient } = await import('@/lib/api/client');
-        const { endpoints } = await import('@/lib/api/endpoints');
-
-        const { ciphertext } = await CryptoService.encryptGroupMessage(
-          groupId,
-          trimmed,
-        );
-
-        await apiClient.post(endpoints.encryptedMessages.send(groupId), {
-          ciphertext,
-          type: 'text',
-          isGroup: true,
-        });
-      } else {
-        // Plaintext fallback
-        await sendPlain.mutateAsync({
-          groupId,
-          data: { content: trimmed },
-        });
-      }
+      await sendMessage.mutateAsync({
+        groupId,
+        data: { content: trimmed },
+      });
     } catch (err) {
       console.warn('[ChatInput] Send failed:', err);
-      // Restore text so user can retry
       setText(trimmed);
     } finally {
       setSending(false);
@@ -126,13 +93,6 @@ const ChatInput = memo(({ groupId }: ChatInputProps) => {
           <Text style={{ color: 'white', fontWeight: 'bold' }}>↑</Text>
         </TouchableOpacity>
       </View>
-
-      {/* E2EE indicator */}
-      {e2eeReady && (
-        <View style={styles.e2eeRow}>
-          <Text style={styles.e2eeText}>🔒 End-to-end encrypted</Text>
-        </View>
-      )}
 
       {/* iOS Home Indicator spacer */}
       <View style={styles.homeIndicator} />
@@ -185,15 +145,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  e2eeRow: {
-    alignItems: 'center',
-    marginTop: SPACING.xs,
-  },
-  e2eeText: {
-    fontSize: 10,
-    color: '#22c55e',
-    fontWeight: '600',
   },
   homeIndicator: {
     width: 130,
