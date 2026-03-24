@@ -57,8 +57,8 @@ export function useTrip(id: string, enabled = true) {
     queryFn: async () => {
       try {
         const response = await apiClient.get<Trip>(endpoints.trips.byId(id));
-        console.log("THE FUXK IS CREATE DATA....", endpoints.trips.byId(id))
-        console.log("THE FUXK IS CREATE DATA....", response.data, response)
+        console.log("THE FUXK IS GET....", endpoints.trips.byId(id))
+        console.log("THE FUXK IS GET....", response.data, response)
         return response.data;
       } catch (error) {
         logApiError(error, 'useTrip');
@@ -275,3 +275,23 @@ export function useFilterTrips(params: TripFilterParams | null) {
     enabled: params !== null,
   });
 }
+
+
+// export function useUserTrip(id: string, enabled = true) {
+//   return useQuery({
+//     queryKey: queryKeys.trips.detail(id),
+//     queryFn: async () => {
+//       try {
+//         const response = await apiClient.get<Trip>(endpoints.trips.byId(id));
+//         console.log("THE FUXK IS GET....", endpoints.trips.byId(id))
+//         console.log("THE FUXK IS GET....", response.data, response)
+//         return response.data;
+//       } catch (error) {
+//         logApiError(error, 'useTrip');
+//         const e = error as any; console.log("WHAT Error", e, e?.response?.data, e?.response, e?.message);
+//         throw new Error(parseApiError(error));
+//       }
+//     },
+//     enabled: enabled && !!id,
+//   });
+// }

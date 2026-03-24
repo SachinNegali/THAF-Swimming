@@ -44,9 +44,11 @@ export const PublicProfileScreen: React.FC<PublicProfileScreenProps> = ({ user, 
         </View>
 
         <View style={styles.statsRow}>
-          <Stat label="Countries" value={user.stats.countries} />
+          {/* <Stat label="Countries" value={user.stats.countries} />
           <Stat label="Trips" value={user.stats.trips} />
-          <Stat label="Followers" value={user.stats.followers} />
+          <Stat label="Followers" value={user.stats.followers} /> */}
+          <Stat label="Joined On" value={user.stats.trips} />
+          <Stat label="Trips" value={user.stats.followers} />
         </View>
 
         <Text style={[styles.bio, { color: textColor }]}>{user.bio}</Text>
@@ -106,13 +108,13 @@ const MiniTrip = ({ title, date, img }: { title: string; date: string; img: stri
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
-  header: { alignItems: 'center', paddingVertical: 32 },
+  header: { alignItems: 'center', paddingVertical: 0 },
   avatarContainer: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, padding: 4, position: 'relative' },
   avatar: { width: '100%', height: '100%', borderRadius: 50 },
   verified: { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   name: { fontSize: 24, fontWeight: '800', marginTop: 16 },
   username: { fontSize: 14, fontWeight: '500' },
-  statsRow: { flexDirection: 'row', justifyContent: 'center', gap: 32, marginVertical: 24 },
+  statsRow: { flexDirection: 'row', justifyContent: 'center', gap: 32, marginVertical: 16 },
   statItem: { alignItems: 'center' },
   statValue: { fontSize: 18, fontWeight: '800' },
   statLabel: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase' },

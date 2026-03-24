@@ -1,6 +1,10 @@
 import ChatListCard from '@/components/chat/ChatListCard';
 import ChatListHeader from '@/components/chat/ChatListHeader';
+import { PublicProfileScreen } from '@/components/profile/publicProfile';
+import { MOCK_USER } from '@/dummy-data/journeys';
 import { useGroups } from '@/hooks/api/useChats';
+import { useSearchUsers, type UserSearchResult } from '@/hooks/api/useUser';
+import { useDebounce } from '@/hooks/useDebounce';
 import { selectUser } from '@/store/selectors';
 import type { Group } from '@/types/api';
 import type { MessageItem, TripMessage } from '@/types/chat';
@@ -8,10 +12,12 @@ import { FlashList } from '@shopify/flash-list';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
   useColorScheme,
 } from 'react-native';
@@ -56,14 +62,43 @@ function mapGroupToMessageItem(group: Group, currentUserId: string): MessageItem
 
 // ─── Screen ─────────────────────────────────────────────
 
+function UserSearchResultItem({ user, isDark, onPress }: { user: UserSearchResult; isDark: boolean, onPress: () => void }) {
+  return (
+    <TouchableOpacity style={[styles.userRow, isDark && styles.userRowDark]} onPress={onPress}>
+      {user.picture ? (
+        <Image source={{ uri: user.picture }} style={styles.avatar} />
+      ) : (
+        <View style={[styles.avatarFallback, isDark && styles.avatarFallbackDark]}>
+          <Text style={styles.avatarFallbackText}>{user.name.charAt(0).toUpperCase()}</Text>
+        </View>
+      )}
+      <View style={styles.userInfo}>
+        <Text style={[styles.userName, isDark && styles.textLight]}>{user.name}</Text>
+        <Text style={styles.userHandle}>@{user.userId}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export default function MessagesScreen() {
   const isDark = useColorScheme() === 'dark';
   const currentUser = useSelector(selectUser);
   const currentUserId = currentUser?._id ?? '';
   const [activeTab, setActiveTab] = useState('All');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
 
   // Fetch groups from API
   const { data: groups, isLoading, error } = useGroups();
+
+  const debouncedQuery = useDebounce(searchQuery, 400);
+
+  // Search users — only fires after 400ms debounce and 3+ chars
+  const {
+    data: searchData,
+    isFetching: isSearchFetching,
+  } = useSearchUsers(debouncedQuery);
 
   // Map to MessageItem
   const messages: MessageItem[] = useMemo(() => {
@@ -79,10 +114,69 @@ export default function MessagesScreen() {
     return messages;
   }, [messages, activeTab]);
 
+  const handleSearchToggle = useCallback(() => {
+    setIsSearching((prev) => {
+      if (prev) setSearchQuery('');
+      return !prev;
+    });
+  }, []);
+
   const renderItem = useCallback(
     ({ item }: { item: MessageItem }) => <ChatListCard item={item} />,
     [],
   );
+
+  const renderUserItem = useCallback(
+    ({ item }: { item: UserSearchResult }) => (
+      <UserSearchResultItem user={item} isDark={isDark} onPress={() => setIsOpen(true)} />
+    ),
+    [isDark],
+  );
+
+  const header = (
+    <ChatListHeader
+      onTabChange={setActiveTab}
+      isSearching={isSearching}
+      onSearchToggle={handleSearchToggle}
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+    />
+  );
+
+  if (isSearching) {
+    const searchResults = searchData?.users ?? [];
+    return (
+      <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <FlashList
+          data={searchResults}
+          renderItem={renderUserItem}
+          keyExtractor={(item) => item.userId}
+          ListHeaderComponent={header}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              {isSearchFetching ? (
+                <ActivityIndicator size="large" />
+              ) : debouncedQuery.trim().length < 3 ? (
+                <Text style={styles.emptyText}>Type at least 3 characters to search</Text>
+              ) : (
+                <Text style={styles.emptyText}>No users found for "{searchQuery}"</Text>
+              )}
+            </View>
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          estimatedItemSize={64}
+        />
+        <PublicProfileScreen
+                user={MOCK_USER}
+                isOpen={isOpen}
+                setIsOpen={() => setIsOpen(false)}
+                onNavigate={() => console.log('navigate')}
+              />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
@@ -91,7 +185,7 @@ export default function MessagesScreen() {
         data={filteredMessages}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={<ChatListHeader onTabChange={setActiveTab} />}
+        ListHeaderComponent={header}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             {isLoading ? (
@@ -136,5 +230,57 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textAlign: 'center',
     paddingHorizontal: 32,
+  },
+  textLight: {
+    color: '#ffffff',
+  },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+  },
+  userRowDark: {
+    backgroundColor: '#1a2232',
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+  },
+  avatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    backgroundColor: 'rgba(43, 108, 238, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarFallbackDark: {
+    backgroundColor: 'rgba(43, 108, 238, 0.25)',
+  },
+  avatarFallbackText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2b6cee',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0d121b',
+  },
+  userHandle: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 2,
   },
 });

@@ -29,7 +29,7 @@ export function useDeviceRegistration() {
       return data;
     },
     onError: (error) => {
-      console.error('Device registration failed:', error);
+      // console.error('Device registration failed:', error);
     },
   });
 }

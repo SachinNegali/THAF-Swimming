@@ -1,13 +1,30 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useColorScheme,
+  View,
+} from 'react-native';
 
 interface ChatListHeaderProps {
   onTabChange?: (tab: string) => void;
+  searchQuery?: string;
+  onSearchChange?: (q: string) => void;
+  isSearching?: boolean;
+  onSearchToggle?: () => void;
 }
 
 const TABS = ['All', 'DMs', 'Trips'];
 
-export default function ChatListHeader({ onTabChange }: ChatListHeaderProps) {
+export default function ChatListHeader({
+  onTabChange,
+  searchQuery = '',
+  onSearchChange,
+  isSearching = false,
+  onSearchToggle,
+}: ChatListHeaderProps) {
   const isDark = useColorScheme() === 'dark';
   const [activeTab, setActiveTab] = useState('All');
 
@@ -20,44 +37,62 @@ export default function ChatListHeader({ onTabChange }: ChatListHeaderProps) {
     <View style={[styles.container, isDark && styles.containerDark]}>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <View style={styles.logoSection}>
-          <Text style={styles.logoIcon}>🧭</Text>
-          <Text style={[styles.title, isDark && styles.textLight]}>Messages</Text>
-        </View>
+        {isSearching ? (
+          <TextInput
+            style={[styles.searchInput, isDark && styles.searchInputDark]}
+            placeholder="Search users..."
+            placeholderTextColor={isDark ? '#6b7280' : '#9ca3af'}
+            value={searchQuery}
+            onChangeText={onSearchChange}
+            autoFocus
+          />
+        ) : (
+          <View style={styles.logoSection}>
+            <Text style={styles.logoIcon}>🧭</Text>
+            <Text style={[styles.title, isDark && styles.textLight]}>Messages</Text>
+          </View>
+        )}
         <View style={styles.actions}>
-          <TouchableOpacity style={[styles.iconButton, isDark && styles.iconButtonDark]}>
-            <Text>🔍</Text>
+          <TouchableOpacity
+            style={[styles.iconButton, isDark && styles.iconButtonDark]}
+            onPress={onSearchToggle}
+          >
+            <Text>{isSearching ? '✕' : '🔍'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.composeButton}>
-            <Text style={{ color: 'white' }}>✏️</Text>
-          </TouchableOpacity>
+          {!isSearching && (
+            <TouchableOpacity style={styles.composeButton}>
+              <Text style={{ color: 'white' }}>✏️</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      {/* Segmented Control */}
-      <View style={[styles.tabContainer, isDark && styles.tabContainerDark]}>
-        {TABS.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            onPress={() => handleTabPress(tab)}
-            style={[
-              styles.tabButton,
-              activeTab === tab && styles.tabButtonActive,
-              activeTab === tab && isDark && styles.tabButtonActiveDark,
-            ]}
-          >
-            <Text
+      {/* Segmented Control — hidden while searching */}
+      {!isSearching && (
+        <View style={[styles.tabContainer, isDark && styles.tabContainerDark]}>
+          {TABS.map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => handleTabPress(tab)}
               style={[
-                styles.tabText,
-                activeTab === tab ? styles.tabTextActive : styles.tabTextInactive,
-                isDark && activeTab !== tab && styles.tabTextInactiveDark,
+                styles.tabButton,
+                activeTab === tab && styles.tabButtonActive,
+                activeTab === tab && isDark && styles.tabButtonActiveDark,
               ]}
             >
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === tab ? styles.tabTextActive : styles.tabTextInactive,
+                  isDark && activeTab !== tab && styles.tabTextInactiveDark,
+                ]}
+              >
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -123,6 +158,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 5,
+  },
+
+  searchInput: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: '#0d121b',
+    marginRight: 8,
+  },
+  searchInputDark: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    color: '#ffffff',
   },
 
   // Tabs
