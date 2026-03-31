@@ -1,6 +1,7 @@
 import { Colors, SPACING } from '@/constants/theme';
-import { useSendGroupMessage } from '@/hooks/api/useChats';
+import { useCreateOrGetDM, useSendGroupMessage } from '@/hooks/api/useChats';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { router } from 'expo-router';
 import React, { memo, useState } from 'react';
 import {
   Platform,
@@ -12,10 +13,13 @@ import {
 } from 'react-native';
 
 interface ChatInputProps {
-  groupId: string;
+  /** Real group/DM ID — undefined when in pending-DM mode */
+  groupId?: string;
+  /** Set when this is a pending DM that hasn't been created yet */
+  recipientId?: string;
 }
 
-const ChatInput = memo(({ groupId }: ChatInputProps) => {
+const ChatInput = memo(({ groupId, recipientId }: ChatInputProps) => {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -28,6 +32,7 @@ const ChatInput = memo(({ groupId }: ChatInputProps) => {
   const placeholderColor = useThemeColor({}, 'textDim');
 
   const sendMessage = useSendGroupMessage();
+  const createOrGetDM = useCreateOrGetDM();
 
   const handleSend = async () => {
     const trimmed = text.trim();
@@ -37,8 +42,27 @@ const ChatInput = memo(({ groupId }: ChatInputProps) => {
     setText('');
 
     try {
+      let targetGroupId = groupId;
+
+      if (recipientId && !groupId) {
+        // Pending DM — create/get the DM group first, then send
+        const dm = await createOrGetDM.mutateAsync({ recipientId });
+        targetGroupId = dm.id;
+        // Replace the pending-DM route with the real group route
+        router.replace({
+          pathname: '/chat/[id]',
+          params: { id: targetGroupId },
+        });
+      }
+
+      if (!targetGroupId) {
+        console.warn('[ChatInput] No groupId available');
+        setText(trimmed);
+        return;
+      }
+
       await sendMessage.mutateAsync({
-        groupId,
+        groupId: targetGroupId,
         data: { content: trimmed },
       });
     } catch (err) {

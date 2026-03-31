@@ -50,6 +50,7 @@ export const endpoints = {
     base: '/group',
     byId: (id: string) => `/group/${id}`,
     create: '/group',
+    createDM: '/group/dm',
     update: (id: string) => `/group/${id}`,
     delete: (id: string) => `/group/${id}`,
     addMembers: (id: string) => `/group/${id}/members`,
@@ -60,6 +61,7 @@ export const endpoints = {
     leave: (id: string) => `/group/${id}/leave`,
     // Messages within a group
     messages: (id: string) => `/group/${id}/messages`,
+    dmMessages: (recipientId: string) => `/group/dm/${recipientId}/messages`,
     sendMessage: (id: string) => `/group/${id}/messages`,
   },
 

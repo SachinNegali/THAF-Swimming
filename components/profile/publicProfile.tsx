@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -8,9 +9,9 @@ import { BottomSheet } from '../ui';
 
 interface PublicProfileScreenProps {
   user: User;
-  onNavigate: (view: ViewState) => void;
-  isOpen: boolean,
-  setIsOpen: (open: boolean) => void,
+  onNavigate?: (view: ViewState) => void;
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
 }
 
 export const PublicProfileScreen: React.FC<PublicProfileScreenProps> = ({ user, onNavigate, isOpen, setIsOpen }) => {
@@ -21,63 +22,74 @@ export const PublicProfileScreen: React.FC<PublicProfileScreenProps> = ({ user, 
   const surfaceColor = useThemeColor({}, 'surface');
   const borderColor = useThemeColor({}, 'border');
 
+  const handleMessagePress = () => {
+    // Navigate to a pending DM screen — no API call yet.
+    // The DM is only created on the server when the first message is sent.
+    setIsOpen(false);
+    router.push({
+      pathname: '/chat/[id]',
+      params: {
+        id: 'dm',
+        recipientId: user.id,
+        recipientName: user.name,
+      },
+    });
+  };
+
   return (
-    // <View style={[styles.container, { backgroundColor }]}>
-        <BottomSheet
-        visible={isOpen}
-        onClose={() => setIsOpen(false)}
-        snapPoints={["75%", "90%"]}
-        scrollable={true}
-      >
-        <View style={[styles.container, { backgroundColor }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent} style={{ flex: 1 }}>
-        <ScreenHeader title="Public Profile" onBack={() => onNavigate('PROFILE')} />
-        <View style={styles.header}>
-          <View style={[styles.avatarContainer, { borderColor: tintColor }]}>
-            <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
-            <View style={[styles.verified, { backgroundColor: tintColor, borderColor: backgroundColor }]}>
-              <Text style={{ color: '#fff', fontSize: 10 }}>Ic verified</Text>
+    <BottomSheet
+      visible={isOpen}
+      onClose={() => setIsOpen(false)}
+      snapPoints={['75%', '90%']}
+      scrollable={true}
+    >
+      <View style={[styles.container, { backgroundColor }]}>
+        <ScrollView contentContainerStyle={styles.scrollContent} style={{ flex: 1 }}>
+          <ScreenHeader title="Public Profile" onBack={() => onNavigate?.('PROFILE')} />
+          <View style={styles.header}>
+            <View style={[styles.avatarContainer, { borderColor: tintColor }]}>
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+              <View style={[styles.verified, { backgroundColor: tintColor, borderColor: backgroundColor }]}>
+                <Text style={{ color: '#fff', fontSize: 10 }}>✓</Text>
+              </View>
             </View>
+            <Text style={[styles.name, { color: textColor }]}>{user.name}</Text>
+            <Text style={[styles.username, { color: textMuted }]}>@{user.username}</Text>
           </View>
-          <Text style={[styles.name, { color: textColor }]}>{user.name}</Text>
-          <Text style={[styles.username, { color: textMuted }]}>@{user.username}</Text>
-        </View>
 
-        <View style={styles.statsRow}>
-          {/* <Stat label="Countries" value={user.stats.countries} />
-          <Stat label="Trips" value={user.stats.trips} />
-          <Stat label="Followers" value={user.stats.followers} /> */}
-          <Stat label="Joined On" value={user.stats.trips} />
-          <Stat label="Trips" value={user.stats.followers} />
-        </View>
-
-        <Text style={[styles.bio, { color: textColor }]}>{user.bio}</Text>
-
-        <View style={styles.btnRow}>
-          <TouchableOpacity style={[styles.mainBtn, { backgroundColor: tintColor }]}>
-            <Text style={{ color: '#fff' }}>Ic person_add</Text>
-            <Text style={styles.mainBtnText}>Follow</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.subBtn, { backgroundColor: surfaceColor, borderColor }]}>
-            <Text style={{ color: textColor }}>Ic chat_bubble</Text>
-            <Text style={[styles.subBtnText, { color: textColor }]}>Message</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.tripsSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: textColor }]}>Previous Trips</Text>
-            <TouchableOpacity><Text style={{ color: tintColor, fontSize: 12 }}>View all</Text></TouchableOpacity>
+          <View style={styles.statsRow}>
+            <Stat label="Joined On" value={user.stats.trips} />
+            <Stat label="Trips" value={user.stats.followers} />
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-            <MiniTrip title="Kyoto" date="Oct 2023" img="https://picsum.photos/seed/kyoto/300/400" />
-            <MiniTrip title="Paris" date="Aug 2023" img="https://picsum.photos/seed/paris/300/400" />
-            <MiniTrip title="Bali" date="Jan 2023" img="https://picsum.photos/seed/bali/300/400" />
-          </ScrollView>
-        </View>
-      </ScrollView>
-    <View style={{ height: 100 }} />
-    </View>
+
+          <Text style={[styles.bio, { color: textColor }]}>{user.bio}</Text>
+
+          <View style={styles.btnRow}>
+            <TouchableOpacity
+              style={[styles.mainBtn, { backgroundColor: tintColor }]}
+              onPress={handleMessagePress}
+            >
+              <Text style={{ color: '#fff' }}>💬</Text>
+              <Text style={styles.mainBtnText}>Message</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.tripsSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: textColor }]}>Previous Trips</Text>
+              <TouchableOpacity>
+                <Text style={{ color: tintColor, fontSize: 12 }}>View all</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+              <MiniTrip title="Kyoto" date="Oct 2023" img="https://picsum.photos/seed/kyoto/300/400" />
+              <MiniTrip title="Paris" date="Aug 2023" img="https://picsum.photos/seed/paris/300/400" />
+              <MiniTrip title="Bali" date="Jan 2023" img="https://picsum.photos/seed/bali/300/400" />
+            </ScrollView>
+          </View>
+        </ScrollView>
+        <View style={{ height: 100 }} />
+      </View>
     </BottomSheet>
   );
 };
@@ -129,6 +141,5 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '800' },
   miniTrip: { width: 140 },
   miniImg: { width: 140, height: 180, borderRadius: 16, marginBottom: 8 },
-  miniTitle: { fontSize: 14, fontWeight: '700' }
+  miniTitle: { fontSize: 14, fontWeight: '700' },
 });
-

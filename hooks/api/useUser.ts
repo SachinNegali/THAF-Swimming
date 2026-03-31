@@ -9,6 +9,7 @@ import type { User } from '@/types/state';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 export interface UserSearchResult {
+  id: string;
   name: string;
   userId: string;
   picture: string;
@@ -41,6 +42,22 @@ export function useSearchUsers(q: string, page = 1, limit = 10) {
     },
     enabled: q.trim().length >= 3,
     staleTime: 30 * 1000,
+  });
+}
+
+export function useUser(id: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.users.detail(id),
+    queryFn: async () => {
+      try {
+        const response = await apiClient.get<User>(endpoints.users.byId(id));
+        return response.data;
+      } catch (error) {
+        logApiError(error, 'useUser');
+        throw new Error(parseApiError(error));
+      }
+    },
+    enabled: enabled && !!id,
   });
 }
 

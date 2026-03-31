@@ -5,6 +5,7 @@ import DateHeader from '@/components/chat/DateHeader';
 import ExpenseCard from '@/components/chat/ExpenseCard';
 import { SPACING } from '@/constants/theme';
 import {
+  useFindDM,
   useGroup,
   useGroupMessages,
   useMarkMessageAsRead,
@@ -19,7 +20,7 @@ import type {
   TextMessage,
 } from '@/types/chat';
 import { FlashList } from '@shopify/flash-list';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -35,9 +36,10 @@ import { useSelector } from 'react-redux';
 
 // ─── Helpers ────────────────────────────────────────────
 
-/** Map a server Message to our ListItem type */
 function mapMessageToListItem(msg: Message, currentUserId: string): ListItem {
   const isMe = msg.senderId === currentUserId;
+  console.log(".....!!THIS IS MESSAGE", msg)
+  console.log(".....!!THIS IS CURRENT USER ID", currentUserId, msg.senderId)
 
   if (msg.type === 'image') {
     return {
@@ -69,13 +71,11 @@ function mapMessageToListItem(msg: Message, currentUserId: string): ListItem {
   } as TextMessage & { type: 'text' };
 }
 
-/** Group messages by date and insert date headers */
 function insertDateHeaders(items: ListItem[]): ListItem[] {
   const result: ListItem[] = [];
   let lastDate = '';
 
   for (const item of items) {
-    // Only chat messages (not headers) have senderId
     if ('senderId' in item) {
       const date = (item as any).timestamp?.split(',')[0] ?? '';
       if (date && date !== lastDate) {
@@ -96,17 +96,38 @@ function insertDateHeaders(items: ListItem[]): ListItem[] {
 // ─── Screen ─────────────────────────────────────────────
 
 export default function GroupChatScreen() {
-  const { id: groupId } = useLocalSearchParams<{ id: string }>();
+  const {
+    id: groupId,
+    recipientId,
+    recipientName,
+  } = useLocalSearchParams<{
+    id: string;
+    recipientId?: string;
+    recipientName?: string;
+  }>();
+
+  console.log(".....!!WHAT ARE THESEEE", groupId, recipientId, recipientName)
   const backgroundColor = useThemeColor({}, 'background');
   const mutedColor = useThemeColor({}, 'textMuted');
   const isDark = useColorScheme() === 'dark';
   const currentUser = useSelector(selectUser);
   const currentUserId = currentUser?._id ?? '';
 
-  // ─── Data Fetching ─────────────────────────────────────
+  // Pending DM: user tapped "Message" on a profile but hasn't sent anything yet.
+  // We don't create the group or fetch messages until the first message is sent.
+  const isPendingDM = groupId === 'dm' && !!recipientId;
+
+  // ─── Check for existing DM ─────────────────────────────
+  // If we land on 'dm', check if a group already exists.
+  const { data: existingGroup } = useFindDM(
+    recipientId ?? '',
+    isPendingDM
+  );
+
+  // ─── Data Fetching (skipped for pending DM) ──────────
   const { data: group, isLoading: groupLoading } = useGroup(
     groupId,
-    !!groupId,
+    !isPendingDM && !!groupId,
   );
 
   const {
@@ -114,26 +135,61 @@ export default function GroupChatScreen() {
     isLoading: plainLoading,
     fetchNextPage,
     hasNextPage,
-  } = useGroupMessages(groupId, undefined, !!groupId);
-
-  // Mark as read
+  } = useGroupMessages(
+    groupId,
+    recipientId,
+    undefined,
+    true, // Always enabled if we have groupId or recipientId (handled by hook)
+  );
+  console.log("PLAIN PAGES....", plainPages)
   const markRead = useMarkMessageAsRead();
+
+  // If we found an existing group (either via find-dm or from the messages list),
+  // update the URL params to use the real ID.
+  React.useEffect(() => {
+    if (!isPendingDM) return;
+
+    let realId = existingGroup?.id;
+    if (!realId && plainPages?.pages?.[0]?.data?.[0]) {
+      realId = plainPages.pages[0].data[0].groupId;
+    }
+
+    if (realId) {
+      console.log('[Chat] Found real groupId, switching to:', realId);
+      router.setParams({ id: realId });
+    }
+  }, [existingGroup, plainPages, isPendingDM]);
+
+  console.log("....!!THIS IS ROUTER",router)
 
   // ─── Map to ListItem ───────────────────────────────────
   const flattenedData = useMemo(() => {
-    let items: ListItem[] = [];
+    if (isPendingDM) return [];
 
+    let items: ListItem[] = [];
     if (plainPages?.pages) {
-      const allMessages = plainPages.pages.flatMap((page) => page.data);
+      const allMessages = plainPages.pages
+        .flatMap((page) => page.data ?? [])
+        .filter(Boolean);
       items = allMessages.map((msg) =>
         mapMessageToListItem(msg, currentUserId),
       );
     }
-
     return insertDateHeaders(items);
-  }, [plainPages, currentUserId]);
+  }, [plainPages, currentUserId, isPendingDM]);
 
-  const isLoading = groupLoading || plainLoading;
+  const isLoading = !isPendingDM && (groupLoading || plainLoading);
+
+  // ─── Header title / subtitle ─────────────────────────
+  const headerTitle = isPendingDM
+    ? recipientName ?? 'New Message'
+    : group?.name ?? 'Chat';
+
+  const memberNames = isPendingDM
+    ? ''
+    : group?.members
+        ?.map((m) => (m.userId === currentUserId ? 'You' : m.userId))
+        .join(', ') ?? '';
 
   // ─── Render ────────────────────────────────────────────
   const renderItem = useCallback(({ item }: { item: ListItem }) => {
@@ -152,18 +208,11 @@ export default function GroupChatScreen() {
     return <ChatBubble item={item as TextMessage | ImageMessage} />;
   }, []);
 
-  const memberNames = group?.members
-    ?.map((m) => (m.userId === currentUserId ? 'You' : m.userId))
-    .join(', ');
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor }}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <ChatHeader
-        title={group?.name ?? 'Chat'}
-        subtitle={memberNames ?? ''}
-      />
+      <ChatHeader title={headerTitle} subtitle={memberNames} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -188,14 +237,25 @@ export default function GroupChatScreen() {
               paddingBottom: 100,
             }}
             onEndReached={() => {
-              if (hasNextPage) {
-                fetchNextPage();
-              }
+              if (hasNextPage) fetchNextPage();
             }}
             onEndReachedThreshold={0.3}
+            ListEmptyComponent={
+              isPendingDM ? (
+                <View style={{ alignItems: 'center', paddingTop: 60 }}>
+                  <Text style={{ color: mutedColor, fontSize: 14 }}>
+                    Send a message to start the conversation
+                  </Text>
+                </View>
+              ) : null
+            }
           />
         )}
-        <ChatInput groupId={groupId} />
+
+        <ChatInput
+          groupId={isPendingDM ? undefined : groupId}
+          recipientId={isPendingDM ? recipientId : undefined}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

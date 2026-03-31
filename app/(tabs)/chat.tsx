@@ -28,7 +28,6 @@ import { useSelector } from 'react-redux';
 /** Map a Group from the API to our MessageItem type */
 function mapGroupToMessageItem(group: Group, currentUserId: string): MessageItem {
   const lastMsg = group.lastMessage;
-  const memberCount = group.members?.length ?? 0;
 
   // Format timestamp
   let timestamp = '';
@@ -41,12 +40,19 @@ function mapGroupToMessageItem(group: Group, currentUserId: string): MessageItem
       : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
-  // For now we treat all groups as trip-type items
-  // (DMs would need a separate API or a `isDirect` flag on the Group model)
+  // For DMs, display the other person's name instead of the group name
+  let title = group.name;
+  if (group.type === 'dm') {
+    const other = group.members?.find((m) => m.userId !== currentUserId);
+    if (other?.user) {
+      title = `${other.user.fName} ${other.user.lName}`.trim();
+    }
+  }
+
   return {
     id: group.id ?? (group as any)._id,
-    type: 'trip',
-    title: group.name,
+    type: group.type === 'dm' ? 'dm' : 'trip',
+    title,
     timestamp,
     status: lastMsg ? 'expense' : 'new',
     actorName: lastMsg
@@ -55,8 +61,8 @@ function mapGroupToMessageItem(group: Group, currentUserId: string): MessageItem
         : lastMsg.senderId
       : undefined,
     actionText: lastMsg?.content ?? 'No messages yet',
-    iconName: '💬',
-    gradientColors: ['#60a5fa', '#4f46e5'],
+    iconName: group.type === 'dm' ? '👤' : '💬',
+    gradientColors: group.type === 'dm' ? ['#f472b6', '#ec4899'] : ['#60a5fa', '#4f46e5'],
   } as TripMessage;
 }
 
@@ -88,9 +94,12 @@ export default function MessagesScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
 
   // Fetch groups from API
   const { data: groups, isLoading, error } = useGroups();
+
+  console.log("groups!!!!!!!!......!!!!", groups)
 
   const debouncedQuery = useDebounce(searchQuery, 400);
 
@@ -102,7 +111,7 @@ export default function MessagesScreen() {
 
   // Map to MessageItem
   const messages: MessageItem[] = useMemo(() => {
-    if (!groups || !Array.isArray(groups)) return [];
+    if (!groups) return [];
     return groups.map((g) => mapGroupToMessageItem(g, currentUserId));
   }, [groups, currentUserId]);
 
@@ -110,7 +119,7 @@ export default function MessagesScreen() {
   const filteredMessages = useMemo(() => {
     if (activeTab === 'All') return messages;
     if (activeTab === 'DMs') return messages.filter((m) => m.type === 'dm');
-    if (activeTab === 'Trips') return messages.filter((m) => m.type === 'trip');
+    if (activeTab === 'Trips') return messages.filter((m) => m.type !== 'dm');
     return messages;
   }, [messages, activeTab]);
 
@@ -128,7 +137,14 @@ export default function MessagesScreen() {
 
   const renderUserItem = useCallback(
     ({ item }: { item: UserSearchResult }) => (
-      <UserSearchResultItem user={item} isDark={isDark} onPress={() => setIsOpen(true)} />
+      <UserSearchResultItem 
+        user={item} 
+        isDark={isDark} 
+        onPress={() => {
+          setSelectedUser(item);
+          setIsOpen(true);
+        }} 
+      />
     ),
     [isDark],
   );
@@ -145,6 +161,7 @@ export default function MessagesScreen() {
 
   if (isSearching) {
     const searchResults = searchData?.users ?? [];
+    console.log(".....!! Search results...", searchResults)
     return (
       <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -169,11 +186,25 @@ export default function MessagesScreen() {
           estimatedItemSize={64}
         />
         <PublicProfileScreen
-                user={MOCK_USER}
-                isOpen={isOpen}
-                setIsOpen={() => setIsOpen(false)}
-                onNavigate={() => console.log('navigate')}
-              />
+          user={selectedUser ? {
+            id: selectedUser.id,
+            name: selectedUser.name,
+            username: selectedUser.userId,
+            email: '',
+            bio: 'No bio yet',
+            location: '',
+            level: 1,
+            avatarUrl: selectedUser.picture || 'https://via.placeholder.com/150',
+            joinedDate: '',
+            stats: { countries: 0, trips: 0, followers: '0' }
+          } : MOCK_USER}
+          isOpen={isOpen}
+          setIsOpen={(open) => {
+            setIsOpen(open);
+            if (!open) setSelectedUser(null);
+          }}
+          onNavigate={() => console.log('navigate')}
+        />
       </SafeAreaView>
     );
   }

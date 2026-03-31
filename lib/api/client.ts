@@ -49,7 +49,12 @@ apiClient.interceptors.request.use(
     console.log("THIS IS API BASE URL", API_BASE_URL)
 
     if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+      // Use set method if available (AxiosHeaders), otherwise direct assignment
+      if (typeof config.headers.set === 'function') {
+        config.headers.set('Authorization', `Bearer ${token}`);
+      } else {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
 
     return config;
@@ -95,19 +100,24 @@ apiClient.interceptors.response.use(
       }
 
       // Call refresh endpoint (uses a fresh axios instance to avoid interceptor loop)
+      console.log('[Auth] Attempting token refresh...');
       const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
         refreshToken,
       });
+      console.log('[Auth] Refresh response status:', response.status, 'data keys:', Object.keys(response.data ?? {}));
 
       // Backend returns the same nested tokens format
       const { access, refresh } = response.data.tokens ?? response.data;
 
-      const newAccessToken = access?.token ?? response.data.accessToken;
-      const newRefreshToken = refresh?.token ?? response.data.refreshToken;
+      const newAccessToken = access?.token ?? response.data.accessToken ?? (typeof access === 'string' ? access : null);
+      const newRefreshToken = refresh?.token ?? response.data.refreshToken ?? (typeof refresh === 'string' ? refresh : null);
 
       if (!newAccessToken) {
+        console.error('[Auth] Refresh failed: No access token in response', response.data);
         throw new Error('No access token in refresh response');
       }
+
+      console.log('[Auth] Refresh successful. New access token acquired.');
 
       // Persist new tokens (in memory + SecureStore)
       await TokenManager.setTokens(newAccessToken, newRefreshToken || refreshToken);
@@ -125,23 +135,27 @@ apiClient.interceptors.response.use(
 
       // Retry the original request
       if (originalRequest.headers) {
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        if (typeof originalRequest.headers.set === 'function') {
+          originalRequest.headers.set('Authorization', `Bearer ${newAccessToken}`);
+        } else {
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        }
       }
 
+      console.log(`[Auth] Retrying original request: ${originalRequest.url}`);
       return apiClient(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);
 
-      // Only force-logout if the refresh token was actually REJECTED (401/403).
-      // If the refresh endpoint is unavailable (404), down (500), or the
-      // network is offline, keep the current tokens — the user may still
-      // have a valid session once the issue resolves.
       const refreshStatus =
         refreshError instanceof AxiosError
           ? refreshError.response?.status
           : undefined;
 
+      console.log('[Auth] Refresh failed — status:', refreshStatus, 'error:', refreshError instanceof Error ? refreshError.message : refreshError);
+
       if (refreshStatus === 401 || refreshStatus === 403 || !TokenManager.getRefreshToken()) {
+        console.log('[Auth] Logging out — refresh rejected or no refresh token');
         await TokenManager.clearTokens();
         store.dispatch(logout());
       }

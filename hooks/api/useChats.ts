@@ -3,37 +3,89 @@ import { endpoints } from '@/lib/api/endpoints';
 import { logApiError, parseApiError } from '@/lib/api/errorHandler';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import type {
-    AddGroupMembersRequest,
-    CreateGroupRequest,
-    Group,
-    Message,
-    MessageFilters,
-    PaginatedResponse,
-    SendMessageRequest,
-    UpdateGroupRequest,
-    UpdateMemberRoleRequest,
+  AddGroupMembersRequest,
+  CreateDMRequest,
+  CreateGroupRequest,
+  Group,
+  GroupMember,
+  Message,
+  MessageFilters,
+  PaginatedResponse,
+  SendMessageRequest,
+  UpdateGroupRequest,
+  UpdateMemberRoleRequest,
 } from '@/types/api';
 import {
-    useInfiniteQuery,
-    useMutation,
-    useQuery,
-    useQueryClient,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
 } from '@tanstack/react-query';
+import axios from 'axios';
+
+// ═══════════════════════════════════════════════════════════
+//  NORMALIZERS — bridge between MongoDB _id / wrapped responses
+//  and the typed Group shape used in the app.
+// ═══════════════════════════════════════════════════════════
+
+function normalizeMember(m: any): GroupMember {
+  return {
+    ...m,
+    userId: m.userId ?? m.user?._id ?? '',
+  };
+}
+
+function normalizeGroup(raw: any): Group {
+  return {
+    ...raw,
+    id: raw.id ?? raw._id,
+    type: raw.type ?? 'group',
+    members: (raw.members ?? []).map(normalizeMember),
+  };
+}
+
+/** POST /group and POST /group/dm both return { message, group } */
+function extractGroup(responseData: any): Group {
+  const raw = responseData?.group ?? responseData;
+  return normalizeGroup(raw);
+}
+
+/** GET /group returns either { groups: [...] } or [...] directly */
+function extractGroupList(responseData: any): Group[] {
+  const list: any[] = Array.isArray(responseData)
+    ? responseData
+    : responseData?.groups ?? [];
+  return list.map(normalizeGroup);
+}
+
+/** GET /group/:id/messages may return { messages, pagination } or { data, pagination } */
+function extractMessages(responseData: any): PaginatedResponse<Message> {
+  const messages: Message[] = responseData?.data ?? responseData?.messages ?? [];
+  return { ...responseData, data: messages };
+}
 
 // ═══════════════════════════════════════════════════════════
 //  QUERIES
 // ═══════════════════════════════════════════════════════════
 
 /**
- * Fetch all groups for the current user.
+ * Fetch all groups/DMs for the current user.
+ * Filters out empty DMs (created but no messages yet) — those only appear
+ * after the first message is sent.
  */
 export function useGroups() {
   return useQuery({
     queryKey: queryKeys.groups.list(),
     queryFn: async () => {
       try {
-        const response = await apiClient.get<Group[]>(endpoints.groups.base);
-        return response.data;
+        const response = await apiClient.get<any>(endpoints.groups.base);
+        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.base)
+        console.log("THIS IS RESPONSE IN USE GROUPS", response.data)
+        const groups = extractGroupList(response.data);
+        // Hide DMs that have never had a message sent
+        return groups.filter(
+          (g) => !(g.type === 'dm' && !g.lastMessage),
+        );
       } catch (error) {
         logApiError(error, 'useGroups');
         throw new Error(parseApiError(error));
@@ -50,8 +102,9 @@ export function useGroup(id: string, enabled = true) {
     queryKey: queryKeys.groups.detail(id),
     queryFn: async () => {
       try {
-        const response = await apiClient.get<Group>(endpoints.groups.byId(id));
-        return response.data;
+        const response = await apiClient.get<any>(endpoints.groups.byId(id));
+        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.base)
+        return normalizeGroup(response.data?.group ?? response.data);
       } catch (error) {
         logApiError(error, 'useGroup');
         throw new Error(parseApiError(error));
@@ -63,29 +116,31 @@ export function useGroup(id: string, enabled = true) {
 
 /**
  * Fetch messages for a group using infinite scroll pagination.
- * Each page fetches `limit` messages. The `before` cursor is used
- * to load older messages as the user scrolls up.
- *
- * This avoids refetching the entire message history on every load.
  */
 export function useGroupMessages(
   groupId: string,
+  recipientId?: string,
   filters?: Omit<MessageFilters, 'before'>,
   enabled = true
 ) {
+  const isDM = groupId === 'dm' && !!recipientId;
+
   return useInfiniteQuery({
-    queryKey: queryKeys.groups.messages(groupId),
+    queryKey: isDM
+      ? ['groups', 'messages', 'dm', recipientId]
+      : queryKeys.groups.messages(groupId),
     queryFn: async ({ pageParam }) => {
       try {
         const params: MessageFilters = {
           ...filters,
           ...(pageParam ? { before: pageParam } : {}),
         };
-        const response = await apiClient.get<PaginatedResponse<Message>>(
-          endpoints.groups.messages(groupId),
-          { params }
-        );
-        return response.data;
+        const endpoint = isDM
+          ? endpoints.groups.dmMessages(recipientId!)
+          : endpoints.groups.messages(groupId);
+
+        const response = await apiClient.get<any>(endpoint, { params });
+        return extractMessages(response.data);
       } catch (error) {
         logApiError(error, 'useGroupMessages');
         throw new Error(parseApiError(error));
@@ -93,12 +148,11 @@ export function useGroupMessages(
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => {
-      if (!lastPage.pagination.hasNext) return undefined;
-      // Use the oldest message's createdAt as cursor for the next page
+      if (!lastPage.pagination?.hasNext) return undefined;
       const oldestMessage = lastPage.data[lastPage.data.length - 1];
       return oldestMessage?.createdAt;
     },
-    enabled: enabled && !!groupId,
+    enabled: enabled && (!!groupId || !!recipientId),
   });
 }
 
@@ -107,7 +161,8 @@ export function useGroupMessages(
 // ═══════════════════════════════════════════════════════════
 
 /**
- * Create a new group.
+ * Create a new group (proactive — all members are notified immediately).
+ * API: POST /group/
  */
 export function useCreateGroup() {
   const qc = useQueryClient();
@@ -115,11 +170,9 @@ export function useCreateGroup() {
   return useMutation({
     mutationFn: async (data: CreateGroupRequest) => {
       try {
-        const response = await apiClient.post<Group>(
-          endpoints.groups.create,
-          data
-        );
-        return response.data;
+        const response = await apiClient.post<any>(endpoints.groups.create, data);
+        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.create, data)
+        return extractGroup(response.data);
       } catch (error) {
         logApiError(error, 'useCreateGroup');
         throw new Error(parseApiError(error));
@@ -128,6 +181,60 @@ export function useCreateGroup() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
     },
+  });
+}
+
+/**
+ * Get or create a DM with a specific user (lazy — only called on first message send).
+ * API: POST /group/dm  { recipientId }
+ * Returns an existing DM if one already exists with that user.
+ */
+export function useCreateOrGetDM() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateDMRequest) => {
+      try {
+        const response = await apiClient.post<any>(endpoints.groups.createDM, data);
+        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.createDM, data)
+        return extractGroup(response.data);
+      } catch (error) {
+        logApiError(error, 'useCreateOrGetDM');
+        throw new Error(parseApiError(error));
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+    },
+  });
+}
+
+/**
+ * Check if a DM already exists with a user without creating it.
+ * API: GET /group/dm?recipientId=...
+ */
+export function useFindDM(recipientId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['groups', 'find-dm', recipientId],
+    queryFn: async () => {
+      try {
+        const response = await apiClient.get<any>(`${endpoints.groups.createDM}/${recipientId}/messages`, {
+          params: { recipientId },
+        });
+        // If the backend returns a group object, normalize and return it.
+        // If it returns 404 or null, the query will return null/undefined.
+        return response.data?.group ? normalizeGroup(response.data.group) : null;
+      } catch (error) {
+        // If 404, just return null (no DM exists)
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          return null;
+        }
+        logApiError(error, 'useFindDM');
+        throw new Error(parseApiError(error));
+      }
+    },
+    enabled: enabled && !!recipientId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -146,18 +253,17 @@ export function useUpdateGroup() {
       data: UpdateGroupRequest;
     }) => {
       try {
-        const response = await apiClient.patch<Group>(
+        const response = await apiClient.patch<any>(
           endpoints.groups.update(id),
           data
         );
-        return response.data;
+        return extractGroup(response.data);
       } catch (error) {
         logApiError(error, 'useUpdateGroup');
         throw new Error(parseApiError(error));
       }
     },
     onSuccess: (updatedGroup) => {
-      // Update detail cache in-place
       qc.setQueryData(queryKeys.groups.detail(updatedGroup.id), updatedGroup);
       qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
     },
@@ -191,9 +297,6 @@ export function useDeleteGroup() {
 //  MEMBER MANAGEMENT MUTATIONS
 // ═══════════════════════════════════════════════════════════
 
-/**
- * Add members to a group.
- */
 export function useAddGroupMembers() {
   const qc = useQueryClient();
 
@@ -206,12 +309,14 @@ export function useAddGroupMembers() {
       data: AddGroupMembersRequest;
     }) => {
       try {
-        const response = await apiClient.post<Group>(
+        const response = await apiClient.post<any>(
           endpoints.groups.addMembers(groupId),
           data
         );
-        return response.data;
+        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.addMembers(groupId), groupId, data)
+        return extractGroup(response.data);
       } catch (error) {
+        console.log("THIS IS ERROR IN USE GROUPS", error)
         logApiError(error, 'useAddGroupMembers');
         throw new Error(parseApiError(error));
       }
@@ -223,9 +328,6 @@ export function useAddGroupMembers() {
   });
 }
 
-/**
- * Remove a member from a group.
- */
 export function useRemoveGroupMember() {
   const qc = useQueryClient();
 
@@ -238,10 +340,10 @@ export function useRemoveGroupMember() {
       userId: string;
     }) => {
       try {
-        const response = await apiClient.delete<Group>(
+        const response = await apiClient.delete<any>(
           endpoints.groups.removeMember(groupId, userId)
         );
-        return response.data;
+        return extractGroup(response.data);
       } catch (error) {
         logApiError(error, 'useRemoveGroupMember');
         throw new Error(parseApiError(error));
@@ -254,9 +356,6 @@ export function useRemoveGroupMember() {
   });
 }
 
-/**
- * Update a member's role within a group.
- */
 export function useUpdateMemberRole() {
   const qc = useQueryClient();
 
@@ -271,11 +370,11 @@ export function useUpdateMemberRole() {
       data: UpdateMemberRoleRequest;
     }) => {
       try {
-        const response = await apiClient.patch<Group>(
+        const response = await apiClient.patch<any>(
           endpoints.groups.updateMemberRole(groupId, userId),
           data
         );
-        return response.data;
+        return extractGroup(response.data);
       } catch (error) {
         logApiError(error, 'useUpdateMemberRole');
         throw new Error(parseApiError(error));
@@ -287,9 +386,6 @@ export function useUpdateMemberRole() {
   });
 }
 
-/**
- * Leave a group.
- */
 export function useLeaveGroup() {
   const qc = useQueryClient();
 
@@ -297,6 +393,7 @@ export function useLeaveGroup() {
     mutationFn: async (groupId: string) => {
       try {
         await apiClient.post(endpoints.groups.leave(groupId));
+        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.leave(groupId), groupId)
         return groupId;
       } catch (error) {
         logApiError(error, 'useLeaveGroup');
@@ -314,11 +411,6 @@ export function useLeaveGroup() {
 //  MESSAGE MUTATIONS
 // ═══════════════════════════════════════════════════════════
 
-/**
- * Send a message to a group.
- * Uses optimistic update: the message appears instantly in the UI,
- * and is rolled back if the server call fails.
- */
 export function useSendGroupMessage() {
   const qc = useQueryClient();
 
@@ -342,20 +434,14 @@ export function useSendGroupMessage() {
       }
     },
     onSuccess: (newMessage) => {
-      // Invalidate messages for this group to pick up the confirmed message
       qc.invalidateQueries({
         queryKey: queryKeys.groups.messages(newMessage.groupId),
       });
-      // Update group list to reflect the latest message
       qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
     },
   });
 }
 
-/**
- * Delete a message (standalone message endpoint).
- * Optimistically removes the message from the group's message cache.
- */
 export function useDeleteMessage() {
   const qc = useQueryClient();
 
@@ -383,9 +469,6 @@ export function useDeleteMessage() {
   });
 }
 
-/**
- * Mark a message as read (standalone message endpoint).
- */
 export function useMarkMessageAsRead() {
   const qc = useQueryClient();
 
@@ -399,6 +482,7 @@ export function useMarkMessageAsRead() {
     }) => {
       try {
         await apiClient.post(endpoints.messages.markAsRead(messageId));
+        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.messages.markAsRead(messageId), messageId)
         return { messageId, groupId };
       } catch (error) {
         logApiError(error, 'useMarkMessageAsRead');
@@ -406,7 +490,6 @@ export function useMarkMessageAsRead() {
       }
     },
     onSuccess: ({ groupId }) => {
-      // Invalidate messages to update readBy arrays
       qc.invalidateQueries({
         queryKey: queryKeys.groups.messages(groupId),
       });

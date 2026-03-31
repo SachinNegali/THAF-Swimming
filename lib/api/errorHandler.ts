@@ -60,6 +60,8 @@ export function parseApiError(error: unknown): string {
 export function logApiError(error: unknown, context?: string): void {
   if (__DEV__) {
     console.log("WHY ERROR", error)
+    console.log("WHY ERROR RESPONSE DATA", error?.response?.data)
+    console.log("WHY ERROR RESPONSE MESSAGE", error?.response)
     console.error(`[API Error${context ? ` - ${context}` : ''}]:`, error);
   }
   

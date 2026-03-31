@@ -188,18 +188,31 @@ export interface EventFilters extends PaginationParams {
 // ─── Groups (Chat) ──────────────────────────────────────
 
 export interface GroupMember {
+  /** Populated user object — returned by the API */
+  user?: {
+    _id: string;
+    fName: string;
+    lName: string;
+    email: string;
+  };
+  /** Normalized convenience field — use this in app code */
   userId: string;
   role: 'admin' | 'member';
   joinedAt: string;
+  _id?: string;
 }
 
 export interface Group {
   id: string;
+  _id?: string;
   name: string;
   description?: string;
+  type: 'dm' | 'group';
   members: GroupMember[];
-  creator: string;
+  creator?: string;
+  createdBy?: string;
   lastMessage?: Message;
+  lastActivity?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -207,7 +220,12 @@ export interface Group {
 export interface CreateGroupRequest {
   name: string;
   description?: string;
-  members?: string[];
+  memberIds?: string[];
+  type?: 'group';
+}
+
+export interface CreateDMRequest {
+  recipientId: string;
 }
 
 export interface UpdateGroupRequest {
