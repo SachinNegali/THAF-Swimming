@@ -4,8 +4,9 @@ import { useMutation } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 
 interface RegisterDevicePayload {
-  token: string;
+  pushToken: string;
   platform: 'ios' | 'android';
+  deviceName: string
 }
 
 /**
@@ -15,10 +16,11 @@ interface RegisterDevicePayload {
  */
 export function useDeviceRegistration() {
   return useMutation({
-    mutationFn: async (token: string) => {
+    mutationFn: async ({token, deviceName}: {token: string, deviceName: string}) => {
       console.log('Registering device with token:', token);
       const payload: RegisterDevicePayload = {
-        token,
+        pushToken: token,
+        deviceName : deviceName ?? "Unkown device",
         platform: Platform.OS as 'ios' | 'android',
       };
       console.log('Registering device with payload:', payload);
@@ -29,7 +31,7 @@ export function useDeviceRegistration() {
       return data;
     },
     onError: (error) => {
-      // console.error('Device registration failed:', error);
+      console.error('Device registration failed: WHYYYYYY???', error);
     },
   });
 }

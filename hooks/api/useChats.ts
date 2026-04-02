@@ -427,6 +427,8 @@ export function useSendGroupMessage() {
           endpoints.groups.sendMessage(groupId),
           data
         );
+        console.log("RESPONSEEEEEE SEND GROUP", response)
+        console.log("RESPONSEEEEEE SEND GROUP data", response?.data)
         return response.data;
       } catch (error) {
         logApiError(error, 'useSendGroupMessage');
@@ -437,6 +439,47 @@ export function useSendGroupMessage() {
       qc.invalidateQueries({
         queryKey: queryKeys.groups.messages(newMessage.groupId),
       });
+      qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+    },
+  });
+}
+
+/**
+ * Send a message in a DM conversation (creates the DM group if needed).
+ * API: POST /group/dm/:recipientId/messages  { content, type?, metadata? }
+ */
+export function useSendDMMessage() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      recipientId,
+      data,
+    }: {
+      recipientId: string;
+      data: SendMessageRequest;
+    }) => {
+      try {
+        const response = await apiClient.post<any>(
+          endpoints.groups.sendDMMessage(recipientId),
+          data
+        );
+        console.log("RESPONSEEEEEE SEND DM", response)
+        console.log("RESPONSEEEEEE SEND DM data", response?.data)
+        return response.data;
+      } catch (error) {
+        logApiError(error, 'useSendDMMessage');
+        throw new Error(parseApiError(error));
+      }
+    },
+    onSuccess: (responseData) => {
+      // Invalidate DM messages and group list so the new DM shows up
+      const groupId = responseData?.group ?? responseData?.data?.groupId;
+      if (groupId) {
+        qc.invalidateQueries({
+          queryKey: queryKeys.groups.messages(groupId),
+        });
+      }
       qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
     },
   });

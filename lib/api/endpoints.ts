@@ -62,6 +62,7 @@ export const endpoints = {
     // Messages within a group
     messages: (id: string) => `/group/${id}/messages`,
     dmMessages: (recipientId: string) => `/group/dm/${recipientId}/messages`,
+    sendDMMessage: (recipientId: string) => `/group/dm/${recipientId}/messages`,
     sendMessage: (id: string) => `/group/${id}/messages`,
   },
 

@@ -2,12 +2,12 @@ import type { DMMessage, MessageItem, TripMessage } from '@/types/chat';
 import { router } from 'expo-router';
 import React, { memo } from 'react';
 import {
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from 'react-native';
 
 // ─── Sub-renderers ──────────────────────────────────────
@@ -84,12 +84,13 @@ interface ChatListCardProps {
 const ChatListCard = memo(({ item }: ChatListCardProps) => {
   const isDark = useColorScheme() === 'dark';
   const isTrip = item.type === 'trip';
-
+  console.log("THIS IS THAT ITEMMMM.....", item)
   return (
     <TouchableOpacity
       activeOpacity={0.7}
       style={[styles.row, isDark && styles.rowDark]}
-      onPress={() => router.push(`/chat/${item.id}`)}
+      // onPress={() => router.push(`/chat/${item.id}`)}
+      onPress={() => router.push(`/chat/${item.id}?recipientId=${item.id}&recipientName=${item.title}`)}
     >
       {/* Avatar */}
       {isTrip ? (

@@ -69,8 +69,8 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   // Get the native FCM device push token (for Firebase Admin SDK)
   try {
     const tokenData = await Notifications.getDevicePushTokenAsync();
-    console.log('FCM Token:', tokenData.data);
-    return tokenData.data as string;
+    const token = tokenData.data as string;
+    return token;
   } catch (error) {
     console.error('Failed to get FCM device token:', error);
     return null;

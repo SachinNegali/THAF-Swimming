@@ -1,15 +1,16 @@
 import { useDeviceRegistration } from '@/hooks/api/useDeviceRegistration';
 import {
-    NotificationData,
-    registerForPushNotificationsAsync,
-    resolveNotificationRoute,
+  NotificationData,
+  registerForPushNotificationsAsync,
+  resolveNotificationRoute,
 } from '@/lib/notifications';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
-    addNotification,
-    setFcmToken,
-    setPermissionStatus,
+  addNotification,
+  setFcmToken,
+  setPermissionStatus,
 } from '@/store/slices/notificationSlice';
+import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
@@ -63,7 +64,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         dispatch(setPermissionStatus('granted'));
 
         // Send FCM token to the backend
-        registerDevice(token);
+        const deviceName = `${Device.brand} ${Device.modelName}`;
+        registerDevice({ token, deviceName });
 
         console.log('FCM Token:', token);
       } else {

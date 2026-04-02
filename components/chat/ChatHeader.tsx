@@ -10,9 +10,10 @@ interface ChatHeaderProps {
   /** Optional right-side balance info */
   balanceLabel?: string;
   balanceAmount?: string;
+  isDm?: boolean;
 }
 
-const ChatHeader = memo(({ title, subtitle, balanceLabel, balanceAmount }: ChatHeaderProps) => {
+const ChatHeader = memo(({ title, subtitle, balanceLabel, balanceAmount, isDm }: ChatHeaderProps) => {
   const headerBg = useThemeColor(
     { light: 'rgba(255,255,255,0.8)', dark: 'rgba(16, 22, 34, 0.8)' },
     'background',
@@ -22,6 +23,8 @@ const ChatHeader = memo(({ title, subtitle, balanceLabel, balanceAmount }: ChatH
   const primaryColor = useThemeColor({}, 'tint');
   const borderColor = useThemeColor({}, 'border');
 
+  console.log("FIX SHIT....IS DM", isDm)
+
   return (
     <View style={[styles.header, { backgroundColor: headerBg, borderColor }]}>
       <View style={styles.left}>
@@ -30,7 +33,7 @@ const ChatHeader = memo(({ title, subtitle, balanceLabel, balanceAmount }: ChatH
         </TouchableOpacity>
         <Pressable style={styles.info} onPress={() => router.push('/groupInfo/[id]')}>
           <Text style={[styles.title, { color: textColor }]}>{title}</Text>
-          <Text style={[styles.subtitle, { color: mutedColor }]}>{subtitle}</Text>
+          {!isDm && <Text style={[styles.subtitle, { color: mutedColor }]}>{subtitle}</Text>}
         </Pressable>
       </View>
       {balanceLabel && balanceAmount && (

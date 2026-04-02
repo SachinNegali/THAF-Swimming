@@ -8,6 +8,7 @@ export interface BaseListMessage {
   timestamp: string;
   avatarUrl?: string;
   title: string;
+  name?: string;
 }
 
 export interface TripMessage extends BaseListMessage {

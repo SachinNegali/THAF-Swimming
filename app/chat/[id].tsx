@@ -142,6 +142,9 @@ export default function GroupChatScreen() {
     true, // Always enabled if we have groupId or recipientId (handled by hook)
   );
   console.log("PLAIN PAGES....", plainPages)
+
+  console.log("FIX SHIT....groupId", groupId)
+  console.log("FIX SHIT....recipientId", recipientId)
   const markRead = useMarkMessageAsRead();
 
   // If we found an existing group (either via find-dm or from the messages list),
@@ -181,14 +184,15 @@ export default function GroupChatScreen() {
   const isLoading = !isPendingDM && (groupLoading || plainLoading);
 
   // ─── Header title / subtitle ─────────────────────────
-  const headerTitle = isPendingDM
-    ? recipientName ?? 'New Message'
-    : group?.name ?? 'Chat';
-
+  // const headerTitle = isPendingDM
+  //   ? recipientName ?? 'New Message'
+  //   : group?.name ?? 'Chat';
+  const headerTitle = recipientName ?? "Messages"
+console.log("FIX SHIT....MEMBERS", group?.members)
   const memberNames = isPendingDM
     ? ''
     : group?.members
-        ?.map((m) => (m.userId === currentUserId ? 'You' : m.userId))
+        ?.map((m) => (m.userId === currentUserId ? 'You' : m.user?.fName))
         .join(', ') ?? '';
 
   // ─── Render ────────────────────────────────────────────
@@ -212,7 +216,7 @@ export default function GroupChatScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor }}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <ChatHeader title={headerTitle} subtitle={memberNames} />
+      <ChatHeader title={headerTitle} subtitle={memberNames} isDm={group?.type === 'dm'}/>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}

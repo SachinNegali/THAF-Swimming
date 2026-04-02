@@ -123,6 +123,7 @@ export default function MessagesScreen() {
     return messages;
   }, [messages, activeTab]);
 
+  console.log("FILTEREDDD MESSAGFESSSS......!!!", filteredMessages)
   const handleSearchToggle = useCallback(() => {
     setIsSearching((prev) => {
       if (prev) setSearchQuery('');

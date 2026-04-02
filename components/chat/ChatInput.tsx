@@ -1,5 +1,5 @@
 import { Colors, SPACING } from '@/constants/theme';
-import { useCreateOrGetDM, useSendGroupMessage } from '@/hooks/api/useChats';
+import { useSendDMMessage, useSendGroupMessage } from '@/hooks/api/useChats';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { router } from 'expo-router';
 import React, { memo, useState } from 'react';
@@ -32,8 +32,9 @@ const ChatInput = memo(({ groupId, recipientId }: ChatInputProps) => {
   const placeholderColor = useThemeColor({}, 'textDim');
 
   const sendMessage = useSendGroupMessage();
-  const createOrGetDM = useCreateOrGetDM();
+  const sendDMMessage = useSendDMMessage();
 
+  console.log("FIX SHIT......!! IN INPUT", groupId, "recipientId", recipientId)
   const handleSend = async () => {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
@@ -42,27 +43,39 @@ const ChatInput = memo(({ groupId, recipientId }: ChatInputProps) => {
     setText('');
 
     try {
-      let targetGroupId = groupId;
-
+      // ── DM mode: use the dedicated DM endpoint ──
       if (recipientId && !groupId) {
-        // Pending DM — create/get the DM group first, then send
-        const dm = await createOrGetDM.mutateAsync({ recipientId });
-        targetGroupId = dm.id;
-        // Replace the pending-DM route with the real group route
-        router.replace({
-          pathname: '/chat/[id]',
-          params: { id: targetGroupId },
+        console.log("FIX SHIT......!! IN INPUT INSIDEE DM")
+        const response = await sendDMMessage.mutateAsync({
+          recipientId,
+          data: { content: trimmed },
         });
+
+        // The backend returns { group: groupId, data: message }
+        const realGroupId = response?.group ?? response?.data?.groupId;
+
+        if (realGroupId) {
+          // Navigate to the real group chat
+          console.log("FIX SHIT......!! IN INPUT INSIDEE DM BEFORE ROUTER", realGroupId)
+          router.replace({
+            pathname: '/chat/[id]',
+            params: { id: realGroupId },
+          });
+          console.log("FIX SHIT......!! IN INPUT INSIDEE DM AFTER ROUTER", realGroupId)
+        }
+        return;
       }
 
-      if (!targetGroupId) {
+      // ── Regular group message ──
+      if (!groupId) {
+        console.log("FIX SHIT......!! IN INPUT INSIDEE GROUP NO GROUPID")
         console.warn('[ChatInput] No groupId available');
         setText(trimmed);
         return;
       }
-
+      console.log("FIX SHIT......!! IN INPUT INSIDEE GROUP HAS GROUPID ")
       await sendMessage.mutateAsync({
-        groupId: targetGroupId,
+        groupId,
         data: { content: trimmed },
       });
     } catch (err) {
