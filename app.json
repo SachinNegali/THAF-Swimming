@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.thafapp.thaf",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "config": {
         "googleMapsApiKey": "AIzaSyBIaPQX7NEd3CBNIbRw93kKG890LPyXcWs"
       },

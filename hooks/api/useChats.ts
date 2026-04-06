@@ -435,10 +435,14 @@ export function useSendGroupMessage() {
         throw new Error(parseApiError(error));
       }
     },
-    onSuccess: (newMessage) => {
-      qc.invalidateQueries({
-        queryKey: queryKeys.groups.messages(newMessage.groupId),
-      });
+    onSuccess: (responseData) => {
+      const msg = responseData?.data ?? responseData;
+      const groupId = msg.groupId ?? msg.group;
+      if (groupId) {
+        qc.invalidateQueries({
+          queryKey: queryKeys.groups.messages(groupId),
+        });
+      }
       qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
     },
   });
@@ -473,8 +477,8 @@ export function useSendDMMessage() {
       }
     },
     onSuccess: (responseData) => {
-      // Invalidate DM messages and group list so the new DM shows up
-      const groupId = responseData?.group ?? responseData?.data?.groupId;
+      const msg = responseData?.data ?? responseData;
+      const groupId = msg.groupId ?? msg.group;
       if (groupId) {
         qc.invalidateQueries({
           queryKey: queryKeys.groups.messages(groupId),
