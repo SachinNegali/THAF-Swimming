@@ -6,8 +6,27 @@ import { store } from '@/store';
 import type { SSEEvent, SSEEventType } from '@/types/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import EventSource from 'react-native-sse';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'polling';
+
+/**
+ * Map server event types (e.g. "message.new") to client SSEEventType.
+ */
+function normalizeEventType(serverType: string): SSEEventType {
+  const map: Record<string, SSEEventType> = {
+    'message.new': 'new_message',
+    'message.deleted': 'message_deleted',
+    'message.read': 'message_read',
+    'group.updated': 'group_updated',
+    'member.added': 'member_added',
+    'member.removed': 'member_removed',
+    'member.role_updated': 'member_role_updated',
+    'trip.updated': 'trip_updated',
+    'notification': 'notification',
+  };
+  return map[serverType] ?? 'notification';
+}
 
 const INITIAL_RETRY_DELAY = 1000;
 const MAX_RETRY_DELAY = 30000;
@@ -16,8 +35,7 @@ const MAX_SSE_RETRIES = 5;
 /**
  * SSE hook for real-time event streaming with long-polling fallback.
  *
- * **Primary**: fetch-based SSE reader via `GET /sse/stream`
- *   (React Native has no built-in EventSource — we use fetch + ReadableStream)
+ * **Primary**: react-native-sse EventSource via `GET /sse/stream`
  * **Fallback**: Short polling via `GET /sse/poll` (activated after SSE fails)
  *
  * Automatically invalidates the relevant React Query caches when events arrive.
@@ -27,7 +45,7 @@ export function useSSE(enabled = true) {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<SSEEvent | null>(null);
 
-  const sseAbortRef = useRef<AbortController | null>(null);
+  const esRef = useRef<EventSource | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -82,18 +100,18 @@ export function useSSE(enabled = true) {
 
   const poll = useCallback(async () => {
     try {
-      // Backend returns { notifications: [...], timestamp: number }
-      // NOT an SSEEvent[] array — map manually
       const response = await apiClient.get<{ notifications: any[]; timestamp: number }>(
         endpoints.sse.poll
       );
       const { notifications = [], timestamp } = response.data ?? {};
       for (const n of notifications) {
-        handleEventRef.current({
-          type: (n.type ?? 'notification') as SSEEventType,
-          data: n,
+        const event: SSEEvent = {
+          type: normalizeEventType(n.type ?? 'notification'),
+          data: n.data ?? n,
           timestamp: String(timestamp ?? Date.now()),
-        });
+        };
+        console.log('[SSE:poll] Event received:', JSON.stringify(event, null, 2));
+        handleEventRef.current(event);
       }
     } catch (error) {
       logApiError(error, 'useSSE:poll');
@@ -123,9 +141,8 @@ export function useSSE(enabled = true) {
   const stopPollingRef = useRef(stopPolling);
   stopPollingRef.current = stopPolling;
 
-  // ─── fetch-based SSE (React Native has no EventSource) ─
+  // ─── EventSource-based SSE ─────────────────────────────
 
-  // Forward ref so the async IIFE can schedule retries without stale closures
   const connectSSERef = useRef<() => void>(() => {});
 
   const connectSSE = useCallback(() => {
@@ -141,16 +158,20 @@ export function useSSE(enabled = true) {
       return;
     }
 
-    // Cancel any existing SSE fetch
-    sseAbortRef.current?.abort();
-    const controller = new AbortController();
-    sseAbortRef.current = controller;
+    // Close any existing connection
+    esRef.current?.close();
 
     setStatus('connecting');
-    console.log('[SSE] Connecting via fetch SSE...');
-
     const sseUrl = `${API_BASE_URL}${endpoints.sse.stream}`;
-    console.log( 'SSE URL...', sseUrl);
+    console.log('[SSE] Connecting to', sseUrl);
+
+    const es = new EventSource(sseUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    esRef.current = es;
+
     const scheduleReconnect = () => {
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       const delay = Math.min(
@@ -161,73 +182,70 @@ export function useSSE(enabled = true) {
       retryTimeoutRef.current = setTimeout(() => connectSSERef.current(), delay);
     };
 
-    (async () => {
+    es.addEventListener('open', () => {
+      console.log('[SSE] Connected successfully');
+      setStatus('connected');
+      retryCountRef.current = 0;
+      stopPollingRef.current();
+    });
+
+    es.addEventListener('message', (e: any) => {
+      if (!e.data) return;
       try {
-        const response = await fetch(sseUrl, {
-          signal: controller.signal,
-          headers: {
-            Accept: 'text/event-stream',
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        console.log('SSE response', response);
-        console.log('SSE response', response?.status, response?.statusText, response?.body);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        if (!response.body) throw new Error('No response body');
+        const parsed = JSON.parse(e.data);
 
-        console.log('[SSE] Connected successfully');
-        setStatus('connected');
-        retryCountRef.current = 0;
-        stopPollingRef.current();
+        // Skip heartbeat events
+        if (!parsed.type && parsed.timestamp) return;
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
-
-          for (const line of lines) {
-            if (line.startsWith('data: ') && line.length > 6) {
-              try {
-                const parsed: SSEEvent = JSON.parse(line.slice(6));
-                handleEventRef.current(parsed);
-              } catch {
-                // heartbeat or malformed — ignore
-              }
-            }
-          }
-        }
-
-        // Server closed stream cleanly — reconnect
-        if (!controller.signal.aborted) {
-          console.log('[SSE] Stream ended, scheduling reconnect');
-          scheduleReconnect();
-        }
-      } catch (err: any) {
-        console.log("WHY ERROR SSE", err)
-        if (controller.signal.aborted) return; // intentional teardown
-
-        console.warn('[SSE] fetch error:', err?.message ?? err);
-        setStatus('disconnected');
-        retryCountRef.current++;
-
-        if (retryCountRef.current > MAX_SSE_RETRIES) {
-          console.log('[SSE] Max retries exceeded, switching to long-poll');
-          startPollingRef.current();
-        } else {
-          scheduleReconnect();
-        }
+        const event: SSEEvent = {
+          type: normalizeEventType(parsed.type ?? 'notification'),
+          data: parsed.data ?? parsed,
+          timestamp: String(parsed.timestamp ?? Date.now()),
+        };
+        console.log('[SSE:stream] Event received:', JSON.stringify(event, null, 2));
+        handleEventRef.current(event);
+      } catch {
+        // malformed data — ignore
       }
-    })();
+    });
+
+    // Listen for named event types the server may send
+    for (const eventName of ['notification', 'heartbeat', 'connected']) {
+      es.addEventListener(eventName, (e: any) => {
+        if (!e.data) return;
+        try {
+          const parsed = JSON.parse(e.data);
+          if (eventName === 'heartbeat' || eventName === 'connected') return;
+
+          const event: SSEEvent = {
+            type: normalizeEventType(parsed.type ?? eventName),
+            data: parsed.data ?? parsed,
+            timestamp: String(parsed.timestamp ?? Date.now()),
+          };
+          console.log(`[SSE:${eventName}] Event received:`, JSON.stringify(event, null, 2));
+          handleEventRef.current(event);
+        } catch {
+          // ignore
+        }
+      });
+    }
+
+    es.addEventListener('error', (e: any) => {
+      console.warn('[SSE] Error:', e);
+      es.close();
+      esRef.current = null;
+      setStatus('disconnected');
+      retryCountRef.current++;
+
+      if (retryCountRef.current > MAX_SSE_RETRIES) {
+        console.log('[SSE] Max retries exceeded, switching to long-poll');
+        startPollingRef.current();
+      } else {
+        scheduleReconnect();
+      }
+    });
   }, [enabled]);
 
-  // Keep the ref in sync so the async retry setTimeout always calls the latest version
   connectSSERef.current = connectSSE;
 
   // ─── Lifecycle ─────────────────────────────────────────
@@ -238,8 +256,8 @@ export function useSSE(enabled = true) {
     }
 
     return () => {
-      sseAbortRef.current?.abort();
-      sseAbortRef.current = null;
+      esRef.current?.close();
+      esRef.current = null;
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
