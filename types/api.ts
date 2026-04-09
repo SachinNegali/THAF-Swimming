@@ -244,16 +244,18 @@ export interface UpdateMemberRoleRequest {
 // ─── Messages ───────────────────────────────────────────
 
 export interface Message {
-  id: string;
-  groupId: string;
-  senderId: string;
+  _id: string;
+  group: string;
+  sender: string;
   content: string;
   type: 'text' | 'image' | 'file';
   isDeleted: boolean;
   readBy: string[];
+  deliveredTo: string[];
   createdAt: string;
   updatedAt: string;
 }
+
 
 export interface SendMessageRequest {
   content: string;

@@ -45,8 +45,8 @@ const processQueue = (error: unknown, token: string | null) => {
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = TokenManager.getAccessToken();
-    console.log("THIS IS TOKEN IN A CALLL",  token)
-    console.log("THIS IS API BASE URL", API_BASE_URL)
+    // console.log("THIS IS TOKEN IN A CALLL",  token)
+    // console.log("THIS IS API BASE URL", API_BASE_URL)
     console.log("THIS IS CONFIG URL...", config?.url)
 
     if (token && config.headers) {

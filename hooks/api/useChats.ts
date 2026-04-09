@@ -79,8 +79,6 @@ export function useGroups() {
     queryFn: async () => {
       try {
         const response = await apiClient.get<any>(endpoints.groups.base);
-        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.base)
-        console.log("THIS IS RESPONSE IN USE GROUPS", response.data)
         const groups = extractGroupList(response.data);
         // Hide DMs that have never had a message sent
         return groups.filter(
@@ -103,7 +101,7 @@ export function useGroup(id: string, enabled = true) {
     queryFn: async () => {
       try {
         const response = await apiClient.get<any>(endpoints.groups.byId(id));
-        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.base)
+
         return normalizeGroup(response.data?.group ?? response.data);
       } catch (error) {
         logApiError(error, 'useGroup');
@@ -171,7 +169,7 @@ export function useCreateGroup() {
     mutationFn: async (data: CreateGroupRequest) => {
       try {
         const response = await apiClient.post<any>(endpoints.groups.create, data);
-        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.create, data)
+
         return extractGroup(response.data);
       } catch (error) {
         logApiError(error, 'useCreateGroup');
@@ -196,7 +194,7 @@ export function useCreateOrGetDM() {
     mutationFn: async (data: CreateDMRequest) => {
       try {
         const response = await apiClient.post<any>(endpoints.groups.createDM, data);
-        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.createDM, data)
+
         return extractGroup(response.data);
       } catch (error) {
         logApiError(error, 'useCreateOrGetDM');
@@ -436,8 +434,8 @@ export function useSendGroupMessage() {
       }
     },
     onSuccess: (responseData) => {
-      const msg = responseData?.data ?? responseData;
-      const groupId = msg.groupId ?? msg.group;
+      const msg = (responseData as any)?.data ?? responseData;
+      const groupId = msg.group ?? msg.groupId;
       if (groupId) {
         qc.invalidateQueries({
           queryKey: queryKeys.groups.messages(groupId),
@@ -478,7 +476,7 @@ export function useSendDMMessage() {
     },
     onSuccess: (responseData) => {
       const msg = responseData?.data ?? responseData;
-      const groupId = msg.groupId ?? msg.group;
+      const groupId = msg.group ?? msg.groupId;
       if (groupId) {
         qc.invalidateQueries({
           queryKey: queryKeys.groups.messages(groupId),

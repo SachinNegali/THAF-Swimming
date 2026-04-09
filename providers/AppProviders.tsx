@@ -51,4 +51,3 @@ export function AppProviders({ children }: AppProvidersProps) {
     </ReduxProvider>
   );
 }
-

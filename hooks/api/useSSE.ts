@@ -3,7 +3,7 @@ import { API_BASE_URL, endpoints } from '@/lib/api/endpoints';
 import { logApiError } from '@/lib/api/errorHandler';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { store } from '@/store';
-import type { SSEEvent, SSEEventType } from '@/types/api';
+import type { Message, PaginatedResponse, SSEEvent, SSEEventType } from '@/types/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import EventSource from 'react-native-sse';
@@ -59,9 +59,43 @@ export function useSSE(enabled = true) {
       const { type, data } = event;
       const groupId = data.groupId as string | undefined;
       const tripId = data.tripId as string | undefined;
-
+      console.log("IN HANDLE EVENT......", event)
       switch (type) {
         case 'new_message':
+          if (groupId) {
+            // Append the new message to the cache instead of refetching
+            const newMessage: Message = {
+              _id: (data.messageId as string) ?? '',
+              group: groupId,
+              sender: (data.senderId as string) ?? '',
+              content: (data.message as string) ?? '',
+              type: 'text',
+              isDeleted: false,
+              readBy: [],
+              deliveredTo: [],
+              createdAt: (data.createdAt as string) ?? new Date().toISOString(),
+              updatedAt: (data.createdAt as string) ?? new Date().toISOString(),
+            };
+            console.log("NEW MESSAGE", newMessage)
+            qc.setQueryData<{ pages: PaginatedResponse<Message>[]; pageParams: unknown[] }>(
+              queryKeys.groups.messages(groupId),
+              (old) => {
+                if (!old?.pages?.length) return old;
+                const firstPage = old.pages[0];
+                // Skip if message already exists
+                if (firstPage.data.some((m) => m._id === newMessage._id)) return old;
+                return {
+                  ...old,
+                  pages: [
+                    { ...firstPage, data: [newMessage, ...firstPage.data] },
+                    ...old.pages.slice(1),
+                  ],
+                };
+              },
+            );
+            qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+          }
+          break;
         case 'message_deleted':
         case 'message_read':
           if (groupId) {
@@ -163,8 +197,6 @@ export function useSSE(enabled = true) {
 
     setStatus('connecting');
     const sseUrl = `${API_BASE_URL}${endpoints.sse.stream}`;
-    console.log('[SSE] Connecting to', sseUrl);
-
     const es = new EventSource(sseUrl, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -193,16 +225,19 @@ export function useSSE(enabled = true) {
       if (!e.data) return;
       try {
         const parsed = JSON.parse(e.data);
-
+        console.log("PARSEDD...", parsed)
         // Skip heartbeat events
         if (!parsed.type && parsed.timestamp) return;
 
         const event: SSEEvent = {
           type: normalizeEventType(parsed.type ?? 'notification'),
-          data: parsed.data ?? parsed,
+          data: {
+            ...(parsed.data ?? {}),
+            message: parsed.message,
+            createdAt: parsed.createdAt,
+          },
           timestamp: String(parsed.timestamp ?? Date.now()),
-        };
-        console.log('[SSE:stream] Event received:', JSON.stringify(event, null, 2));
+        };console.log('[SSE:stream] Event received:', JSON.stringify(event, null, 2));
         handleEventRef.current(event);
       } catch {
         // malformed data — ignore
@@ -215,14 +250,18 @@ export function useSSE(enabled = true) {
         if (!e.data) return;
         try {
           const parsed = JSON.parse(e.data);
+          console.log("PARSEDD...2", parsed)
           if (eventName === 'heartbeat' || eventName === 'connected') return;
 
           const event: SSEEvent = {
             type: normalizeEventType(parsed.type ?? eventName),
-            data: parsed.data ?? parsed,
+            data: {
+              ...(parsed.data ?? {}),
+              message: parsed.message,
+              createdAt: parsed.createdAt,
+            },
             timestamp: String(parsed.timestamp ?? Date.now()),
-          };
-          console.log(`[SSE:${eventName}] Event received:`, JSON.stringify(event, null, 2));
+          };console.log(`[SSE:${eventName}] Event received:`, JSON.stringify(event, null, 2));
           handleEventRef.current(event);
         } catch {
           // ignore

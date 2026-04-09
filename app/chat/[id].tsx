@@ -37,37 +37,35 @@ import { useSelector } from 'react-redux';
 // ─── Helpers ────────────────────────────────────────────
 
 function mapMessageToListItem(msg: Message, currentUserId: string): ListItem {
-  const isMe = msg.senderId === currentUserId;
-  console.log(".....!!THIS IS MESSAGE", msg)
-  console.log(".....!!THIS IS CURRENT USER ID", currentUserId, msg.senderId)
+  const isMe = msg.sender === currentUserId;
 
   if (msg.type === 'image') {
     return {
-      id: msg.id,
+      id: msg._id,
       type: 'image',
       timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
       }),
-      senderId: msg.senderId,
-      senderName: isMe ? 'Me' : msg.senderId,
+      senderId: msg.sender,
+      senderName: isMe ? 'Me' : msg.sender,
       isMe,
       imageUrl: msg.content,
     } as ImageMessage & { type: 'image' };
   }
 
   return {
-    id: msg.id,
+    id: msg._id,
     type: 'text',
     timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
     }),
-    senderId: msg.senderId,
-    senderName: isMe ? 'Me' : msg.senderId,
+    senderId: msg.sender,
+    senderName: isMe ? 'Me' : msg.sender,
     isMe,
     content: msg.content,
-    status: msg.readBy.length > 1 ? 'read' : 'sent',
+    status: msg.readBy?.length > 1 ? 'read' : 'sent',
   } as TextMessage & { type: 'text' };
 }
 
@@ -106,7 +104,6 @@ export default function GroupChatScreen() {
     recipientName?: string;
   }>();
 
-  console.log(".....!!WHAT ARE THESEEE", groupId, recipientId, recipientName)
   const backgroundColor = useThemeColor({}, 'background');
   const mutedColor = useThemeColor({}, 'textMuted');
   const isDark = useColorScheme() === 'dark';
@@ -141,10 +138,6 @@ export default function GroupChatScreen() {
     undefined,
     true, // Always enabled if we have groupId or recipientId (handled by hook)
   );
-  console.log("PLAIN PAGES....", plainPages)
-
-  console.log("FIX SHIT....groupId", groupId)
-  console.log("FIX SHIT....recipientId", recipientId)
   const markRead = useMarkMessageAsRead();
 
   // If we found an existing group (either via find-dm or from the messages list),
@@ -154,21 +147,17 @@ export default function GroupChatScreen() {
 
     let realId = existingGroup?.id;
     if (!realId && plainPages?.pages?.[0]?.data?.[0]) {
-      realId = plainPages.pages[0].data[0].groupId;
+      realId = plainPages.pages[0].data[0].group;
     }
 
     if (realId) {
-      console.log('[Chat] Found real groupId, switching to:', realId);
       router.setParams({ id: realId });
     }
   }, [existingGroup, plainPages, isPendingDM]);
 
-  console.log("....!!THIS IS ROUTER",router)
-
   // ─── Map to ListItem ───────────────────────────────────
   const flattenedData = useMemo(() => {
     if (isPendingDM) return [];
-
     let items: ListItem[] = [];
     if (plainPages?.pages) {
       const allMessages = plainPages.pages
@@ -184,11 +173,7 @@ export default function GroupChatScreen() {
   const isLoading = !isPendingDM && (groupLoading || plainLoading);
 
   // ─── Header title / subtitle ─────────────────────────
-  // const headerTitle = isPendingDM
-  //   ? recipientName ?? 'New Message'
-  //   : group?.name ?? 'Chat';
-  const headerTitle = recipientName ?? "Messages"
-console.log("FIX SHIT....MEMBERS", group?.members)
+  const headerTitle = recipientName ?? 'Messages';
   const memberNames = isPendingDM
     ? ''
     : group?.members
@@ -212,6 +197,7 @@ console.log("FIX SHIT....MEMBERS", group?.members)
     return <ChatBubble item={item as TextMessage | ImageMessage} />;
   }, []);
 
+  console.log("PAGES", plainPages)
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor }}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
