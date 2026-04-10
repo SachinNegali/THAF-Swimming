@@ -156,19 +156,23 @@ export default function GroupChatScreen() {
   }, [existingGroup, plainPages, isPendingDM]);
 
   // ─── Map to ListItem ───────────────────────────────────
+  // Flatten all pages into a single list of messages.
+  // We pull `pages[0].data.length` into the dep array explicitly so that
+  // React Query's structural sharing can't skip the recompute when a new
+  // message is appended to the cache via SSE.
+  const allMessages = useMemo(() => {
+    if (isPendingDM || !plainPages?.pages) return [] as Message[];
+    return plainPages.pages
+      .flatMap((page) => page.data ?? [])
+      .filter(Boolean) as Message[];
+  }, [plainPages, plainPages?.pages?.[0]?.data?.length, isPendingDM]);
+
   const flattenedData = useMemo(() => {
-    if (isPendingDM) return [];
-    let items: ListItem[] = [];
-    if (plainPages?.pages) {
-      const allMessages = plainPages.pages
-        .flatMap((page) => page.data ?? [])
-        .filter(Boolean);
-      items = allMessages.map((msg) =>
-        mapMessageToListItem(msg, currentUserId),
-      );
-    }
+    const items = allMessages.map((msg) =>
+      mapMessageToListItem(msg, currentUserId),
+    );
     return insertDateHeaders(items);
-  }, [plainPages, currentUserId, isPendingDM]);
+  }, [allMessages, currentUserId]);
 
   const isLoading = !isPendingDM && (groupLoading || plainLoading);
 
@@ -181,6 +185,8 @@ export default function GroupChatScreen() {
         .join(', ') ?? '';
 
   // ─── Render ────────────────────────────────────────────
+  const keyExtractor = useCallback((item: ListItem) => item.id, []);
+
   const renderItem = useCallback(({ item }: { item: ListItem }) => {
     if ('title' in item && !('senderId' in item)) {
       return (
@@ -197,7 +203,8 @@ export default function GroupChatScreen() {
     return <ChatBubble item={item as TextMessage | ImageMessage} />;
   }, []);
 
-  console.log("PAGES", plainPages)
+  console.log("PAGES MATTADE BESARAAAAA... ", Platform.OS, plainPages)
+  console.log("FLATTENED datattat", flattenedData)
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor }}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -220,8 +227,11 @@ export default function GroupChatScreen() {
         ) : (
           <FlashList
             data={flattenedData}
+            // Force FlashList to re-render when new messages are appended
+            // via SSE (cell recycling otherwise keeps the stale view).
+            extraData={flattenedData.length}
             renderItem={renderItem}
-            keyExtractor={(item) => item.id}
+            keyExtractor={keyExtractor}
             contentContainerStyle={{
               paddingHorizontal: SPACING.md,
               paddingBottom: 100,

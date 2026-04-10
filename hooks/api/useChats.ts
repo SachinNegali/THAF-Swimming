@@ -114,6 +114,12 @@ export function useGroup(id: string, enabled = true) {
 
 /**
  * Fetch messages for a group using infinite scroll pagination.
+ *
+ * Messages are ALWAYS cached under `queryKeys.groups.messages(realGroupId)`
+ * so that SSE events (which only carry `groupId`) can append directly.
+ *
+ * For a pending DM (groupId === 'dm', no group yet), the real groupId is
+ * resolved via `useFindDM` first — the query is disabled until then.
  */
 export function useGroupMessages(
   groupId: string,
@@ -121,21 +127,27 @@ export function useGroupMessages(
   filters?: Omit<MessageFilters, 'before'>,
   enabled = true
 ) {
-  const isDM = groupId === 'dm' && !!recipientId;
+  const isDMLookup = groupId === 'dm' && !!recipientId;
+
+  // For pending DMs, resolve the real groupId before fetching messages.
+  // This ensures the cache key is always `queryKeys.groups.messages(realGroupId)`.
+  const { data: resolvedDM } = useFindDM(recipientId ?? '', isDMLookup);
+
+  const canonicalGroupId = isDMLookup ? resolvedDM?.id ?? '' : groupId;
 
   return useInfiniteQuery({
-    queryKey: isDM
-      ? ['groups', 'messages', 'dm', recipientId]
-      : queryKeys.groups.messages(groupId),
+    queryKey: queryKeys.groups.messages(canonicalGroupId),
     queryFn: async ({ pageParam }) => {
       try {
         const params: MessageFilters = {
           ...filters,
           ...(pageParam ? { before: pageParam } : {}),
         };
-        const endpoint = isDM
+        // Use the DM endpoint when resolving via recipientId; otherwise the
+        // regular group endpoint. Data is cached under the groupId either way.
+        const endpoint = isDMLookup
           ? endpoints.groups.dmMessages(recipientId!)
-          : endpoints.groups.messages(groupId);
+          : endpoints.groups.messages(canonicalGroupId);
 
         const response = await apiClient.get<any>(endpoint, { params });
         return extractMessages(response.data);
@@ -150,7 +162,7 @@ export function useGroupMessages(
       const oldestMessage = lastPage.data[lastPage.data.length - 1];
       return oldestMessage?.createdAt;
     },
-    enabled: enabled && (!!groupId || !!recipientId),
+    enabled: enabled && !!canonicalGroupId,
   });
 }
 
@@ -433,14 +445,10 @@ export function useSendGroupMessage() {
         throw new Error(parseApiError(error));
       }
     },
-    onSuccess: (responseData) => {
-      const msg = (responseData as any)?.data ?? responseData;
-      const groupId = msg.group ?? msg.groupId;
-      if (groupId) {
-        qc.invalidateQueries({
-          queryKey: queryKeys.groups.messages(groupId),
-        });
-      }
+    // NOTE: We deliberately do NOT invalidate the messages cache here.
+    // The SSE stream is the source of truth for new messages — invalidating
+    // would refetch and clobber any messages appended by SSE between sends.
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
     },
   });
@@ -474,14 +482,14 @@ export function useSendDMMessage() {
         throw new Error(parseApiError(error));
       }
     },
-    onSuccess: (responseData) => {
-      const msg = responseData?.data ?? responseData;
-      const groupId = msg.group ?? msg.groupId;
-      if (groupId) {
-        qc.invalidateQueries({
-          queryKey: queryKeys.groups.messages(groupId),
-        });
-      }
+    // NOTE: We do NOT invalidate the messages cache — SSE is the source
+    // of truth for new messages. Refetching here would clobber SSE-appended
+    // messages. We still invalidate find-dm so that a brand-new DM gets its
+    // real groupId resolved after the first message is sent.
+    onSuccess: (_responseData, variables) => {
+      qc.invalidateQueries({
+        queryKey: ['groups', 'find-dm', variables.recipientId],
+      });
       qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
     },
   });

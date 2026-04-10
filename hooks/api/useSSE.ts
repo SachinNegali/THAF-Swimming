@@ -77,22 +77,33 @@ export function useSSE(enabled = true) {
               updatedAt: (data.createdAt as string) ?? new Date().toISOString(),
             };
             console.log("NEW MESSAGE", newMessage)
-            qc.setQueryData<{ pages: PaginatedResponse<Message>[]; pageParams: unknown[] }>(
+
+            type MessagesCache =
+              | { pages: PaginatedResponse<Message>[]; pageParams: unknown[] }
+              | undefined;
+
+            const updater = (old: MessagesCache): MessagesCache => {
+              console.log("OLD MESSAGESSS.....", old)
+              if (!old?.pages?.length) return old;
+              const firstPage = old.pages[0];
+              // Skip if message already exists (dedupe SSE echo)
+              if (firstPage.data.some((m) => m._id === newMessage._id)) return old;
+              return {
+                ...old,
+                pages: [
+                  { ...firstPage, data: [newMessage, ...firstPage.data] },
+                  ...old.pages.slice(1),
+                ],
+              };
+            };
+
+            // All message caches (groups AND DMs) are keyed by the real
+            // groupId now, so a single write updates both list and chat views.
+            qc.setQueryData<MessagesCache>(
               queryKeys.groups.messages(groupId),
-              (old) => {
-                if (!old?.pages?.length) return old;
-                const firstPage = old.pages[0];
-                // Skip if message already exists
-                if (firstPage.data.some((m) => m._id === newMessage._id)) return old;
-                return {
-                  ...old,
-                  pages: [
-                    { ...firstPage, data: [newMessage, ...firstPage.data] },
-                    ...old.pages.slice(1),
-                  ],
-                };
-              },
+              updater,
             );
+            console.log("KAB0OOOM", qc.setQueryData(queryKeys.groups.messages(groupId), updater));
             qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
           }
           break;
