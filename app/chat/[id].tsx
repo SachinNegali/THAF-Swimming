@@ -21,7 +21,7 @@ import type {
 } from '@/types/chat';
 import { FlashList } from '@shopify/flash-list';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -184,10 +184,43 @@ export default function GroupChatScreen() {
         ?.map((m) => (m.userId === currentUserId ? 'You' : m.user?.fName))
         .join(', ') ?? '';
 
+  // ─── Auto-scroll to bottom ─────────────────────────────
+  const listRef = useRef<FlashList<ListItem>>(null);
+  const isNearBottomRef = useRef(true);
+  const isInitialLoadRef = useRef(true);
+
+  useEffect(() => {
+    if (flattenedData.length === 0) return;
+
+    if (isInitialLoadRef.current) {
+      // First data load — jump to bottom without animation
+      isInitialLoadRef.current = false;
+      const t = setTimeout(() => {
+        listRef.current?.scrollToEnd({ animated: false });
+      }, 150);
+      return () => clearTimeout(t);
+    }
+
+    // New message arrived — scroll only if user is near the bottom
+    if (isNearBottomRef.current) {
+      const t = setTimeout(() => {
+        listRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [flattenedData.length]);
+
+  const onScroll = useCallback((event: any) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom =
+      contentSize.height - contentOffset.y - layoutMeasurement.height;
+    isNearBottomRef.current = distanceFromBottom < 150;
+  }, []);
+
   // ─── Render ────────────────────────────────────────────
   const keyExtractor = useCallback((item: ListItem) => item.id, []);
-
-  const renderItem = useCallback(({ item }: { item: ListItem }) => {
+  
+  const renderItem = useCallback(({ item, isDm }: { item: ListItem, isDm: boolean }) => {
     if ('title' in item && !('senderId' in item)) {
       return (
         <DateHeader
@@ -200,7 +233,7 @@ export default function GroupChatScreen() {
     if (item.type === 'expense') {
       return <ExpenseCard item={item as ExpenseMessage} />;
     }
-    return <ChatBubble item={item as TextMessage | ImageMessage} />;
+    return <ChatBubble item={item as TextMessage | ImageMessage} isDm={isDm}/>;
   }, []);
 
   console.log("PAGES MATTADE BESARAAAAA... ", Platform.OS, plainPages)
@@ -226,12 +259,14 @@ export default function GroupChatScreen() {
           </View>
         ) : (
           <FlashList
+            ref={listRef}
             data={flattenedData}
-            // Force FlashList to re-render when new messages are appended
-            // via SSE (cell recycling otherwise keeps the stale view).
             extraData={flattenedData.length}
-            renderItem={renderItem}
+            // estimatedItemSize={60}
+            renderItem={({ item }) => renderItem({ item, isDm: group?.type === 'dm' })}
             keyExtractor={keyExtractor}
+            onScroll={onScroll}
+            scrollEventThrottle={100}
             contentContainerStyle={{
               paddingHorizontal: SPACING.md,
               paddingBottom: 100,

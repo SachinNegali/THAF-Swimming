@@ -6,14 +6,15 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 
 interface ChatBubbleProps {
   item: TextMessage | ImageMessage;
+  isDm: boolean;
 }
 
-const ChatBubble = memo(({ item }: ChatBubbleProps) => {
+const ChatBubble = memo(({ item, isDm }: ChatBubbleProps) => {
   const backgroundColor = useThemeColor({ light: '#f1f5f9', dark: '#2d3e5a' }, 'surfaceLight');
   const textColor = useThemeColor({}, 'text');
   const primaryColor = useThemeColor({}, 'tint');
   const secondaryTextColor = useThemeColor({}, 'textMuted');
-
+  console.log("THIS ...", item)
   // ─── My Bubble ────────────────────────────────────────
   if (item.isMe) {
     return (
@@ -39,7 +40,7 @@ const ChatBubble = memo(({ item }: ChatBubbleProps) => {
   // ─── Their Bubble ─────────────────────────────────────
   return (
     <View style={styles.theirMessageContainer}>
-      <Image source={{ uri: item.senderAvatar }} style={styles.avatar} />
+      {isDm ? <></> : <Image source={{ uri: item.senderAvatar }} style={styles.avatar} />}
       <View style={styles.theirContent}>
         <Text style={[styles.senderName, { color: secondaryTextColor }]}>
           {item.senderName}
@@ -87,10 +88,16 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.xs,
   },
   theirBubble: {
+    // borderRadius: 8,
+    // borderBottomLeftRadius: 2,
+    // paddingHorizontal: SPACING.md,
+    // paddingVertical: SPACING.sm,
     borderRadius: 8,
     borderBottomLeftRadius: 2,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#c1c1c166'
   },
 
   // My message
@@ -102,9 +109,9 @@ const styles = StyleSheet.create({
   },
   myBubble: {
     borderRadius: 8,
-    borderBottomRightRadius: 0,
+    borderBottomRightRadius: 2,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingVertical: 8,
   },
 
   // Shared

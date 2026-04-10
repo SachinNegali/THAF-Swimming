@@ -132,7 +132,7 @@ const ChatInput = memo(({ groupId, recipientId }: ChatInputProps) => {
       </View>
 
       {/* iOS Home Indicator spacer */}
-      <View style={styles.homeIndicator} />
+      {/* <View style={styles.homeIndicator} /> */}
     </View>
   );
 });
