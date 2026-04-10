@@ -2,6 +2,7 @@ import { apiClient } from '@/lib/api/client';
 import { endpoints } from '@/lib/api/endpoints';
 import { logApiError, parseApiError } from '@/lib/api/errorHandler';
 import { queryKeys } from '@/lib/react-query/queryClient';
+import { store } from '@/store';
 import type {
   AddGroupMembersRequest,
   CreateDMRequest,
@@ -424,6 +425,8 @@ export function useLeaveGroup() {
 export function useSendGroupMessage() {
   const qc = useQueryClient();
 
+  type MessagesCache = { pages: PaginatedResponse<Message>[]; pageParams: unknown[] };
+
   return useMutation({
     mutationFn: async ({
       groupId,
@@ -437,18 +440,89 @@ export function useSendGroupMessage() {
           endpoints.groups.sendMessage(groupId),
           data
         );
-        console.log("RESPONSEEEEEE SEND GROUP", response)
-        console.log("RESPONSEEEEEE SEND GROUP data", response?.data)
         return response.data;
       } catch (error) {
         logApiError(error, 'useSendGroupMessage');
         throw new Error(parseApiError(error));
       }
     },
-    // NOTE: We deliberately do NOT invalidate the messages cache here.
-    // The SSE stream is the source of truth for new messages — invalidating
-    // would refetch and clobber any messages appended by SSE between sends.
-    onSuccess: () => {
+
+    // ── Optimistic update: show message instantly on the sender's screen ──
+    onMutate: async ({ groupId, data }) => {
+      await qc.cancelQueries({ queryKey: queryKeys.groups.messages(groupId) });
+
+      const previous = qc.getQueryData<MessagesCache>(
+        queryKeys.groups.messages(groupId),
+      );
+
+      const currentUserId = store.getState().auth.user?._id ?? '';
+      const tempId = `temp-${Date.now()}-${Math.random()}`;
+      const optimisticMessage: Message = {
+        _id: tempId,
+        group: groupId,
+        sender: currentUserId,
+        content: data.content,
+        type: 'text',
+        isDeleted: false,
+        readBy: [],
+        deliveredTo: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      qc.setQueryData<MessagesCache>(
+        queryKeys.groups.messages(groupId),
+        (old) => {
+          if (!old?.pages?.length) return old;
+          const firstPage = old.pages[0];
+          return {
+            ...old,
+            pages: [
+              { ...firstPage, data: [...firstPage.data, optimisticMessage] },
+              ...old.pages.slice(1),
+            ],
+          };
+        },
+      );
+
+      return { previous, tempId, groupId };
+    },
+
+    onError: (_err, _vars, context) => {
+      // Roll back to the snapshot before the optimistic write
+      if (context?.previous) {
+        qc.setQueryData(
+          queryKeys.groups.messages(context.groupId),
+          context.previous,
+        );
+      }
+    },
+
+    onSuccess: (responseData, { groupId }, context) => {
+      // Replace the temp message with the real one from the server response.
+      // When SSE arrives later, the dedup check (_id match) will skip it.
+      const realMsg: Message | undefined =
+        (responseData as any)?.data ?? responseData;
+
+      if (context?.tempId && realMsg?._id) {
+        qc.setQueryData<MessagesCache>(
+          queryKeys.groups.messages(groupId),
+          (old) => {
+            if (!old?.pages?.length) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                data: page.data.map((m) =>
+                  m._id === context.tempId
+                    ? { ...realMsg, group: groupId }
+                    : m,
+                ),
+              })),
+            };
+          },
+        );
+      }
       qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
     },
   });
@@ -460,6 +534,8 @@ export function useSendGroupMessage() {
  */
 export function useSendDMMessage() {
   const qc = useQueryClient();
+
+  type MessagesCache = { pages: PaginatedResponse<Message>[]; pageParams: unknown[] };
 
   return useMutation({
     mutationFn: async ({
@@ -474,19 +550,47 @@ export function useSendDMMessage() {
           endpoints.groups.sendDMMessage(recipientId),
           data
         );
-        console.log("RESPONSEEEEEE SEND DM", response)
-        console.log("RESPONSEEEEEE SEND DM data", response?.data)
         return response.data;
       } catch (error) {
         logApiError(error, 'useSendDMMessage');
         throw new Error(parseApiError(error));
       }
     },
-    // NOTE: We do NOT invalidate the messages cache — SSE is the source
-    // of truth for new messages. Refetching here would clobber SSE-appended
-    // messages. We still invalidate find-dm so that a brand-new DM gets its
-    // real groupId resolved after the first message is sent.
-    onSuccess: (_responseData, variables) => {
+
+    onSuccess: (responseData, variables) => {
+      // Seed the messages cache with the sent message so it shows
+      // immediately once the chat screen navigates to the real group.
+      const realMsg: Message | undefined =
+        responseData?.data ?? responseData;
+      const groupId = realMsg?.group ?? responseData?.group;
+
+      if (groupId && realMsg?._id) {
+        const key = queryKeys.groups.messages(groupId);
+        const existing = qc.getQueryData<MessagesCache>(key);
+
+        if (!existing) {
+          // Brand-new DM — bootstrap the cache with the first message
+          qc.setQueryData<MessagesCache>(key, {
+            pages: [{ data: [realMsg], pagination: {} as any }],
+            pageParams: [undefined],
+          });
+        } else {
+          // DM already had messages — append if not already there (SSE race)
+          qc.setQueryData<MessagesCache>(key, (old) => {
+            if (!old?.pages?.length) return old;
+            const firstPage = old.pages[0];
+            if (firstPage.data.some((m) => m._id === realMsg._id)) return old;
+            return {
+              ...old,
+              pages: [
+                { ...firstPage, data: [...firstPage.data, realMsg] },
+                ...old.pages.slice(1),
+              ],
+            };
+          });
+        }
+      }
+
       qc.invalidateQueries({
         queryKey: ['groups', 'find-dm', variables.recipientId],
       });

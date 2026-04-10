@@ -91,7 +91,7 @@ export function useSSE(enabled = true) {
               return {
                 ...old,
                 pages: [
-                  { ...firstPage, data: [newMessage, ...firstPage.data] },
+                  { ...firstPage, data: [...firstPage.data, newMessage] },
                   ...old.pages.slice(1),
                 ],
               };
