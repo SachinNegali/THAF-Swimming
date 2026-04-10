@@ -77,6 +77,71 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 }
 
+// ─── Local Notification for SSE Messages ──────────────────
+/**
+ * Fires a local notification when a new chat message arrives via SSE.
+ * Skips if the sender is the current user (to avoid self-notification).
+ *
+ * - DM:    title = senderName,  body = "senderName sent a message"
+ * - Group: title = groupName,   body = "senderName sent a message in groupName"
+ *
+ * @param senderId   ID of the message sender
+ * @param content    Message body text
+ * @param groupId    Group / DM ID the message belongs to
+ * @param senderName Display name of the sender
+ * @param isDm       Whether this is a direct message
+ * @param groupName  Name of the group (ignored for DMs)
+ */
+export async function showLocalMessageNotification({
+  senderId,
+  content,
+  groupId,
+  senderName,
+  isDm = false,
+  groupName,
+}: {
+  senderId: string;
+  content: string;
+  groupId?: string;
+  senderName?: string;
+  isDm?: boolean;
+  groupName?: string;
+}): Promise<void> {
+  // Avoid importing at the top-level to prevent circular deps with the store
+  const { store } = require('@/store');
+  const currentUserId: string = store.getState().auth.user?._id ?? '';
+
+  // Don't notify the user about their own messages
+  if (senderId === currentUserId) return;
+
+  const displayName = senderName ?? 'Someone';
+
+  let title: string;
+  let body: string;
+
+  if (isDm) {
+    title = displayName;
+    body = content || 'Sent a message';
+  } else {
+    title = groupName ?? 'New Message';
+    body = `${displayName}: ${content || 'Sent a message'}`;
+  }
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      sound: 'default',
+      data: {
+        type: 'chat_message',
+        chatId: groupId,
+        groupId,
+      },
+    },
+    trigger: null, // show immediately
+  });
+}
+
 // ─── Deeplink Resolution ──────────────────────────────────
 /**
  * Maps notification data to an in-app route for deeplink navigation.

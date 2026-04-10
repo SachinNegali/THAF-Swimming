@@ -122,7 +122,7 @@ export default function MessagesScreen() {
     if (activeTab === 'Trips') return messages.filter((m) => m.type !== 'dm');
     return messages;
   }, [messages, activeTab]);
-
+  
   console.log("FILTEREDDD MESSAGFESSSS......!!!", filteredMessages)
   const handleSearchToggle = useCallback(() => {
     setIsSearching((prev) => {
@@ -132,7 +132,9 @@ export default function MessagesScreen() {
   }, []);
 
   const renderItem = useCallback(
-    ({ item }: { item: MessageItem }) => <ChatListCard item={item} />,
+    ({ item }: { item: MessageItem }) => {
+      console.log("Message item\n", item)
+      return(<ChatListCard item={item} />)},
     [],
   );
 

@@ -1,9 +1,10 @@
 import { apiClient } from '@/lib/api/client';
 import { API_BASE_URL, endpoints } from '@/lib/api/endpoints';
 import { logApiError } from '@/lib/api/errorHandler';
+import { showLocalMessageNotification } from '@/lib/notifications';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { store } from '@/store';
-import type { Message, PaginatedResponse, SSEEvent, SSEEventType } from '@/types/api';
+import type { Group, Message, PaginatedResponse, SSEEvent, SSEEventType } from '@/types/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import EventSource from 'react-native-sse';
@@ -105,6 +106,32 @@ export function useSSE(enabled = true) {
             );
             console.log("KAB0OOOM", qc.setQueryData(queryKeys.groups.messages(groupId), updater));
             qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+
+            // Show a local notification for the incoming message
+            // Look up group info from the cached groups list
+            const cachedGroups = qc.getQueryData<Group[]>(queryKeys.groups.list());
+            const matchedGroup = cachedGroups?.find(
+              (g) => (g.id ?? g._id) === groupId,
+            );
+            const isDm = matchedGroup?.type === 'dm';
+            const groupDisplayName = matchedGroup?.name;
+
+            // Resolve sender display name from the group's member list
+            const senderMember = matchedGroup?.members?.find(
+              (m) => m.userId === newMessage.sender || m.user?._id === newMessage.sender,
+            );
+            const senderName = senderMember?.user
+              ? `${senderMember.user.fName} ${senderMember.user.lName}`.trim()
+              : undefined;
+
+            showLocalMessageNotification({
+              senderId: newMessage.sender,
+              content: newMessage.content,
+              groupId,
+              senderName,
+              isDm,
+              groupName: groupDisplayName,
+            });
           }
           break;
         case 'message_deleted':

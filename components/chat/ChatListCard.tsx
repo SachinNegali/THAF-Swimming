@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import React, { memo } from 'react';
 import {
   Image,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -61,6 +62,9 @@ function TripSubtitle({ item }: { item: TripMessage }) {
 }
 
 function DMSubtitle({ item, isDark }: { item: DMMessage; isDark: boolean }) {
+  if(Platform.OS == "ios"){
+  console.log("THIS IS THAT ITEMMMM..... actiontext", item.actionText)
+  }
   return (
     <Text
       style={[
@@ -70,7 +74,7 @@ function DMSubtitle({ item, isDark }: { item: DMMessage; isDark: boolean }) {
       ]}
       numberOfLines={1}
     >
-      {item.preview}
+      {item.actionText}
     </Text>
   );
 }
@@ -84,7 +88,9 @@ interface ChatListCardProps {
 const ChatListCard = memo(({ item }: ChatListCardProps) => {
   const isDark = useColorScheme() === 'dark';
   const isTrip = item.type === 'trip';
+  if(Platform.OS == "ios"){
   console.log("THIS IS THAT ITEMMMM.....", item)
+  }
   return (
     <TouchableOpacity
       activeOpacity={0.7}
@@ -109,7 +115,7 @@ const ChatListCard = memo(({ item }: ChatListCardProps) => {
             {item.timestamp}
           </Text>
         </View>
-
+        
         {isTrip ? (
           <TripSubtitle item={item as TripMessage} />
         ) : (

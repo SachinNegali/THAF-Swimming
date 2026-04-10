@@ -24,6 +24,7 @@ export interface DMMessage extends BaseListMessage {
   type: 'dm';
   preview: string;
   isRead: boolean;
+  actionText: string;
 }
 
 export type MessageItem = TripMessage | DMMessage;
