@@ -36,52 +36,71 @@ import { useSelector } from 'react-redux';
 
 // ─── Helpers ────────────────────────────────────────────
 
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDateLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  const dayMs = 86_400_000;
+
+  if (diff < dayMs && d.getDate() === now.getDate()) return 'Today';
+  if (diff < 2 * dayMs && d.getDate() === new Date(now.getTime() - dayMs).getDate())
+    return 'Yesterday';
+
+  return d.toLocaleDateString([], {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 function mapMessageToListItem(msg: Message, currentUserId: string): ListItem {
   const isMe = msg.sender === currentUserId;
 
-  if (msg.type === 'image') {
-    return {
-      id: msg._id,
-      type: 'image',
-      timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      senderId: msg.sender,
-      senderName: isMe ? 'Me' : msg.sender,
-      isMe,
-      imageUrl: msg.content,
-    } as ImageMessage & { type: 'image' };
-  }
-
-  return {
+  const base = {
     id: msg._id,
-    type: 'text',
-    timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
+    timestamp: formatTime(msg.createdAt),
     senderId: msg.sender,
     senderName: isMe ? 'Me' : msg.sender,
     isMe,
+    _createdAt: msg.createdAt, // raw ISO — used by insertDateHeaders
+  };
+
+  if (msg.type === 'image') {
+    return { ...base, type: 'image', imageUrl: msg.content } as ImageMessage & {
+      type: 'image';
+      _createdAt: string;
+    };
+  }
+
+  return {
+    ...base,
+    type: 'text',
     content: msg.content,
     status: msg.readBy?.length > 1 ? 'read' : 'sent',
-  } as TextMessage & { type: 'text' };
+  } as TextMessage & { type: 'text'; _createdAt: string };
 }
 
 function insertDateHeaders(items: ListItem[]): ListItem[] {
   const result: ListItem[] = [];
-  let lastDate = '';
+  let lastDateKey = '';
 
   for (const item of items) {
     if ('senderId' in item) {
-      const date = (item as any).timestamp?.split(',')[0] ?? '';
-      if (date && date !== lastDate) {
-        lastDate = date;
+      const iso: string = (item as any)._createdAt ?? '';
+      const dateKey = iso ? new Date(iso).toDateString() : '';
+      if (dateKey && dateKey !== lastDateKey) {
+        lastDateKey = dateKey;
         result.push({
           type: 'header',
-          title: date,
-          id: `header-${date}`,
+          title: formatDateLabel(iso),
+          id: `header-${dateKey}`,
         });
       }
     }
