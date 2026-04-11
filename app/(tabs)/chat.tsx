@@ -1,3 +1,4 @@
+import { CreateGroupBottomSheet } from '@/components/chat/CreateGroupBottomSheet';
 import ChatListCard from '@/components/chat/ChatListCard';
 import ChatListHeader from '@/components/chat/ChatListHeader';
 import { PublicProfileScreen } from '@/components/profile/publicProfile';
@@ -95,9 +96,29 @@ export default function MessagesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
+  const [isCreateGroupVisible, setIsCreateGroupVisible] = useState(false);
 
   // Fetch groups from API
   const { data: groups, isLoading, error } = useGroups();
+
+  // Extract initial users from existing chats for the create group sheet
+  const initialUsers: UserSearchResult[] = useMemo(() => {
+    if (!groups) return [];
+    const usersMap = new Map<string, UserSearchResult>();
+    groups.forEach((group) => {
+      group.members?.forEach((member) => {
+        if (member.userId !== currentUserId && member.user) {
+          usersMap.set(member.userId, {
+            id: member.userId,
+            name: `${member.user.fName} ${member.user.lName}`.trim(),
+            userId: (member.user as any).userId || member.user.email,
+            picture: (member.user as any).profilePicture || (member.user as any).picture || '',
+          });
+        }
+      });
+    });
+    return Array.from(usersMap.values());
+  }, [groups, currentUserId]);
 
   console.log("groups!!!!!!!!......!!!!", groups)
 
@@ -159,6 +180,7 @@ export default function MessagesScreen() {
       onSearchToggle={handleSearchToggle}
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
+      onComposePress={() => setIsCreateGroupVisible(true)}
     />
   );
 
@@ -237,6 +259,12 @@ export default function MessagesScreen() {
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+      />
+      
+      <CreateGroupBottomSheet
+        visible={isCreateGroupVisible}
+        onClose={() => setIsCreateGroupVisible(false)}
+        initialUsers={initialUsers}
       />
     </SafeAreaView>
   );

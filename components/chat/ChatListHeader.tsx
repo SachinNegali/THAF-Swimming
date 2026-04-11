@@ -14,6 +14,7 @@ interface ChatListHeaderProps {
   onSearchChange?: (q: string) => void;
   isSearching?: boolean;
   onSearchToggle?: () => void;
+  onComposePress?: () => void;
 }
 
 const TABS = ['All', 'DMs', 'Trips'];
@@ -24,6 +25,7 @@ export default function ChatListHeader({
   onSearchChange,
   isSearching = false,
   onSearchToggle,
+  onComposePress,
 }: ChatListHeaderProps) {
   const isDark = useColorScheme() === 'dark';
   const [activeTab, setActiveTab] = useState('All');
@@ -60,7 +62,10 @@ export default function ChatListHeader({
             <Text>{isSearching ? '✕' : '🔍'}</Text>
           </TouchableOpacity>
           {!isSearching && (
-            <TouchableOpacity style={styles.composeButton}>
+            <TouchableOpacity 
+              style={styles.composeButton}
+              onPress={onComposePress}
+            >
               <Text style={{ color: 'white' }}>✏️</Text>
             </TouchableOpacity>
           )}
