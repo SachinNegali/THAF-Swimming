@@ -104,6 +104,11 @@ export const endpoints = {
   media: {
     upload: '/media/upload',
     download: (mediaId: string) => `/media/${mediaId}`,
+    // ─── Presigned-URL upload flow ─────────────────────
+    uploadInit: '/media/upload/init',
+    uploadComplete: '/media/upload/complete',
+    uploadStatus: (imageId: string) => `/media/upload/status/${imageId}`,
+    uploadStatusBatch: '/media/upload/status/batch',
   },
 
   // ─── Group sender key distribution ────────────────────

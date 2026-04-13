@@ -1,8 +1,10 @@
 import { Colors, SPACING } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import type { ImageMessage, TextMessage } from '@/types/chat';
+import { Image } from 'expo-image';
 import React, { memo } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import ImageUploadThumbnail from './ImageUploadThumbnail';
 
 interface ChatBubbleProps {
   item: TextMessage | ImageMessage;
@@ -14,14 +16,48 @@ const ChatBubble = memo(({ item, isDm }: ChatBubbleProps) => {
   const textColor = useThemeColor({}, 'text');
   const primaryColor = useThemeColor({}, 'tint');
   const secondaryTextColor = useThemeColor({}, 'textMuted');
-  console.log("THIS ...", item)
-  // ─── My Bubble ────────────────────────────────────────
+
+  const renderImageContent = (msg: ImageMessage) => {
+    // New upload-pipeline images (multiple attachments with status)
+    if (msg.images?.length) {
+      return (
+        <View style={styles.imageGrid}>
+          {msg.images.map((img) => (
+            <ImageUploadThumbnail
+              key={img.imageId}
+              imageId={img.imageId}
+              localUri={img.localUri}
+              status={img.status}
+              thumbnailUrl={img.thumbnailUrl}
+              optimizedUrl={img.optimizedUrl}
+              width={img.width}
+              height={img.height}
+              error={img.error}
+              compact={msg.images!.length > 1}
+            />
+          ))}
+        </View>
+      );
+    }
+
+    // Legacy single-image (server URL)
+    return (
+      <Image
+        source={{ uri: msg.imageUrl }}
+        style={styles.chatImage}
+        contentFit="cover"
+        transition={200}
+      />
+    );
+  };
+
+  // ─── My Bubble ──────────���─────────────────────────────
   if (item.isMe) {
     return (
       <View style={styles.myMessageContainer}>
         <View style={[styles.myBubble, { backgroundColor: primaryColor }]}>
           {item.type === 'image' ? (
-            <Image source={{ uri: item.imageUrl }} style={styles.chatImage} />
+            renderImageContent(item)
           ) : (
             <Text style={[styles.bubbleText, { color: '#fff' }]}>
               {item.content}
@@ -37,7 +73,7 @@ const ChatBubble = memo(({ item, isDm }: ChatBubbleProps) => {
     );
   }
 
-  // ─── Their Bubble ─────────────────────────────────────
+  // ─── Their Bubble ─────────���───────────────────────────
   return (
     <View style={styles.theirMessageContainer}>
       {isDm ? <></> : <Image source={{ uri: item.senderAvatar }} style={styles.avatar} />}
@@ -47,7 +83,7 @@ const ChatBubble = memo(({ item, isDm }: ChatBubbleProps) => {
         </Text>
         <View style={[styles.theirBubble, { backgroundColor: '#fff' }]}>
           {item.type === 'image' ? (
-            <Image source={{ uri: item.imageUrl }} style={styles.chatImage} />
+            renderImageContent(item)
           ) : (
             <Text style={[styles.bubbleText, { color: textColor }]}>
               {item.content}
@@ -88,10 +124,6 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.xs,
   },
   theirBubble: {
-    // borderRadius: 8,
-    // borderBottomLeftRadius: 2,
-    // paddingHorizontal: SPACING.md,
-    // paddingVertical: SPACING.sm,
     borderRadius: 8,
     borderBottomLeftRadius: 2,
     paddingHorizontal: SPACING.md,
@@ -123,6 +155,12 @@ const styles = StyleSheet.create({
     width: 200,
     height: 140,
     borderRadius: 12,
+    marginVertical: 4,
+  },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
     marginVertical: 4,
   },
   statusText: {

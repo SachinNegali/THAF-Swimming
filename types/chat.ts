@@ -53,6 +53,19 @@ export interface ImageMessage extends BaseChatMessage {
   type: 'image';
   imageUrl: string;
   caption?: string;
+  /** Client-generated messageId linking this message to upload records */
+  uploadMessageId?: string;
+  /** Multiple images attached via the upload pipeline */
+  images?: {
+    imageId: string;
+    localUri: string;
+    status: import('@/types/upload').UploadStatus;
+    thumbnailUrl: string | null;
+    optimizedUrl: string | null;
+    width: number | null;
+    height: number | null;
+    error: string | null;
+  }[];
 }
 
 export interface ExpenseMessage extends BaseChatMessage {

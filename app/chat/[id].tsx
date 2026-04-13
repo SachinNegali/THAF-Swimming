@@ -11,6 +11,7 @@ import {
   useMarkMessageAsRead,
 } from '@/hooks/api/useChats';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { getUploadsByMessage, subscribeUploadStore } from '@/stores/uploadStore';
 import { selectUser } from '@/store/selectors';
 import type { Message } from '@/types/api';
 import type {
@@ -19,9 +20,10 @@ import type {
   ListItem,
   TextMessage,
 } from '@/types/chat';
+import { getUploadSnapshot } from '@/stores/uploadStore';
 import { FlashList } from '@shopify/flash-list';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -73,10 +75,30 @@ function mapMessageToListItem(msg: Message, currentUserId: string): ListItem {
   };
 
   if (msg.type === 'image') {
-    return { ...base, type: 'image', imageUrl: msg.content } as ImageMessage & {
-      type: 'image';
-      _createdAt: string;
-    };
+    // Check for upload-pipeline images linked via _uploadMessageId
+    const uploadMsgId = (msg as any)._uploadMessageId as string | undefined;
+    const uploads = uploadMsgId ? getUploadsByMessage(uploadMsgId) : [];
+
+    const images = uploads.length
+      ? uploads.map((u) => ({
+          imageId: u.imageId,
+          localUri: u.localUri,
+          status: u.status,
+          thumbnailUrl: u.thumbnailUrl,
+          optimizedUrl: u.optimizedUrl,
+          width: u.width,
+          height: u.height,
+          error: u.error,
+        }))
+      : undefined;
+
+    return {
+      ...base,
+      type: 'image',
+      imageUrl: msg.content,
+      uploadMessageId: uploadMsgId,
+      images,
+    } as ImageMessage & { type: 'image'; _createdAt: string };
   }
 
   return {
@@ -128,6 +150,9 @@ export default function GroupChatScreen() {
   const isDark = useColorScheme() === 'dark';
   const currentUser = useSelector(selectUser);
   const currentUserId = currentUser?._id ?? '';
+
+  // Subscribe to upload store so image upload status changes trigger re-renders
+  const _uploadSnapshot = useSyncExternalStore(subscribeUploadStore, getUploadSnapshot);
 
   // Pending DM: user tapped "Message" on a profile but hasn't sent anything yet.
   // We don't create the group or fetch messages until the first message is sent.
@@ -191,7 +216,8 @@ export default function GroupChatScreen() {
       mapMessageToListItem(msg, currentUserId),
     );
     return insertDateHeaders(items);
-  }, [allMessages, currentUserId]);
+    // _uploadSnapshot triggers recalc when upload records change (progress, status, etc.)
+  }, [allMessages, currentUserId, _uploadSnapshot]);
 
   const isLoading = !isPendingDM && (groupLoading || plainLoading);
 

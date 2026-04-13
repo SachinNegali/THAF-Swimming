@@ -301,7 +301,9 @@ export type SSEEventType =
   | 'member_removed'
   | 'member_role_updated'
   | 'trip_updated'
-  | 'notification';
+  | 'notification'
+  | 'upload_status'
+  | 'message_media_ready';
 
 export interface SSEEvent {
   type: SSEEventType;

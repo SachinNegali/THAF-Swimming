@@ -3,8 +3,10 @@ import { API_BASE_URL, endpoints } from '@/lib/api/endpoints';
 import { logApiError } from '@/lib/api/errorHandler';
 import { showLocalMessageNotification } from '@/lib/notifications';
 import { queryKeys } from '@/lib/react-query/queryClient';
+import { updateUpload } from '@/stores/uploadStore';
 import { store } from '@/store';
 import type { Group, Message, PaginatedResponse, SSEEvent, SSEEventType } from '@/types/api';
+import type { UploadSSEEvent, MediaReadySSEEvent } from '@/types/upload';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import EventSource from 'react-native-sse';
@@ -25,6 +27,11 @@ function normalizeEventType(serverType: string): SSEEventType {
     'member.role_updated': 'member_role_updated',
     'trip.updated': 'trip_updated',
     'notification': 'notification',
+    'upload:status': 'upload_status',
+    'upload.status': 'upload_status',
+    'message:media-ready': 'message_media_ready',
+    'message.media-ready': 'message_media_ready',
+    'message.media_ready': 'message_media_ready',
   };
   return map[serverType] ?? 'notification';
 }
@@ -160,6 +167,39 @@ export function useSSE(enabled = true) {
           qc.invalidateQueries({ queryKey: queryKeys.notifications.list() });
           qc.invalidateQueries({ queryKey: queryKeys.notifications.unreadCount() });
           break;
+
+        case 'upload_status': {
+          const upload = data as unknown as UploadSSEEvent;
+          if (upload.status === 'completed') {
+            updateUpload(upload.imageId, {
+              status: 'completed',
+              thumbnailUrl: upload.thumbnailUrl ?? null,
+              optimizedUrl: upload.optimizedUrl ?? null,
+              width: upload.width ?? null,
+              height: upload.height ?? null,
+            });
+          } else if (upload.status === 'failed') {
+            updateUpload(upload.imageId, { status: 'failed' });
+          }
+          // When all images for a message are complete, refresh the message
+          if (upload.allImagesComplete && upload.chatId) {
+            qc.invalidateQueries({
+              queryKey: queryKeys.groups.messages(upload.chatId),
+            });
+          }
+          break;
+        }
+
+        case 'message_media_ready': {
+          const media = data as unknown as MediaReadySSEEvent;
+          // Another participant's images are ready — refresh messages
+          if (media.chatId) {
+            qc.invalidateQueries({
+              queryKey: queryKeys.groups.messages(media.chatId),
+            });
+          }
+          break;
+        }
       }
     },
     [qc]
@@ -283,7 +323,7 @@ export function useSSE(enabled = true) {
     });
 
     // Listen for named event types the server may send
-    for (const eventName of ['notification', 'heartbeat', 'connected']) {
+    for (const eventName of ['notification', 'heartbeat', 'connected', 'upload:status', 'message:media-ready']) {
       es.addEventListener(eventName, (e: any) => {
         if (!e.data) return;
         try {
