@@ -324,10 +324,8 @@ export function useAddGroupMembers() {
           endpoints.groups.addMembers(groupId),
           data
         );
-        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.addMembers(groupId), groupId, data)
         return extractGroup(response.data);
       } catch (error) {
-        console.log("THIS IS ERROR IN USE GROUPS", error)
         logApiError(error, 'useAddGroupMembers');
         throw new Error(parseApiError(error));
       }
@@ -404,7 +402,6 @@ export function useLeaveGroup() {
     mutationFn: async (groupId: string) => {
       try {
         await apiClient.post(endpoints.groups.leave(groupId));
-        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.groups.leave(groupId), groupId)
         return groupId;
       } catch (error) {
         logApiError(error, 'useLeaveGroup');
@@ -462,12 +459,13 @@ export function useSendGroupMessage() {
         group: groupId,
         sender: currentUserId,
         content: data.content,
-        type: 'text',
+        type: data.type ?? 'text',
         isDeleted: false,
         readBy: [],
         deliveredTo: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        metadata: data.metadata,
       };
 
       qc.setQueryData<MessagesCache>(
@@ -639,7 +637,6 @@ export function useMarkMessageAsRead() {
     }) => {
       try {
         await apiClient.post(endpoints.messages.markAsRead(messageId));
-        console.log("THIS IS ENDPOINT IN USE GROUPS", endpoints.messages.markAsRead(messageId), messageId)
         return { messageId, groupId };
       } catch (error) {
         logApiError(error, 'useMarkMessageAsRead');

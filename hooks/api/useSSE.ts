@@ -6,7 +6,11 @@ import { queryKeys } from '@/lib/react-query/queryClient';
 import { updateUpload } from '@/stores/uploadStore';
 import { store } from '@/store';
 import type { Group, Message, PaginatedResponse, SSEEvent, SSEEventType } from '@/types/api';
-import type { UploadSSEEvent, MediaReadySSEEvent } from '@/types/upload';
+import type {
+  MediaReadySSEEvent,
+  MessageImageUpdatedSSEEvent,
+  UploadSSEEvent,
+} from '@/types/upload';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import EventSource from 'react-native-sse';
@@ -29,6 +33,8 @@ function normalizeEventType(serverType: string): SSEEventType {
     'notification': 'notification',
     'upload:status': 'upload_status',
     'upload.status': 'upload_status',
+    'message.image_updated': 'message_image_updated',
+    'message:image-updated': 'message_image_updated',
     'message:media-ready': 'message_media_ready',
     'message.media-ready': 'message_media_ready',
     'message.media_ready': 'message_media_ready',
@@ -181,23 +187,82 @@ export function useSSE(enabled = true) {
           } else if (upload.status === 'failed') {
             updateUpload(upload.imageId, { status: 'failed' });
           }
-          // When all images for a message are complete, refresh the message
-          if (upload.allImagesComplete && upload.chatId) {
-            qc.invalidateQueries({
-              queryKey: queryKeys.groups.messages(upload.chatId),
-            });
-          }
+          break;
+        }
+
+        case 'message_image_updated': {
+          const payload = data as unknown as MessageImageUpdatedSSEEvent;
+          const gId = payload.groupId;
+          if (!gId) break;
+
+          type MessagesCache =
+            | { pages: PaginatedResponse<Message>[]; pageParams: unknown[] }
+            | undefined;
+
+          qc.setQueryData<MessagesCache>(
+            queryKeys.groups.messages(gId),
+            (old) => {
+              if (!old?.pages?.length) return old;
+              return {
+                ...old,
+                pages: old.pages.map((page) => ({
+                  ...page,
+                  data: page.data.map((m) => {
+                    if (m._id !== payload.messageId) return m;
+                    const existing = m.metadata?.images ?? [];
+                    const idx = existing.findIndex(
+                      (i) => i.imageId === payload.imageId,
+                    );
+                    const nextImages =
+                      idx === -1
+                        ? [...existing, payload.image]
+                        : existing.map((i, n) =>
+                            n === idx ? payload.image : i,
+                          );
+                    return {
+                      ...m,
+                      metadata: { ...(m.metadata ?? {}), images: nextImages },
+                    };
+                  }),
+                })),
+              };
+            },
+          );
           break;
         }
 
         case 'message_media_ready': {
           const media = data as unknown as MediaReadySSEEvent;
-          // Another participant's images are ready — refresh messages
-          if (media.chatId) {
-            qc.invalidateQueries({
-              queryKey: queryKeys.groups.messages(media.chatId),
-            });
-          }
+          const gId = media.groupId;
+          if (!gId || !media.images) break;
+
+          type MessagesCache =
+            | { pages: PaginatedResponse<Message>[]; pageParams: unknown[] }
+            | undefined;
+
+          qc.setQueryData<MessagesCache>(
+            queryKeys.groups.messages(gId),
+            (old) => {
+              if (!old?.pages?.length) return old;
+              return {
+                ...old,
+                pages: old.pages.map((page) => ({
+                  ...page,
+                  data: page.data.map((m) =>
+                    m._id === media.messageId
+                      ? {
+                          ...m,
+                          metadata: {
+                            ...(m.metadata ?? {}),
+                            images: media.images!,
+                          },
+                        }
+                      : m,
+                  ),
+                })),
+              };
+            },
+          );
           break;
         }
       }
@@ -323,7 +388,16 @@ export function useSSE(enabled = true) {
     });
 
     // Listen for named event types the server may send
-    for (const eventName of ['notification', 'heartbeat', 'connected', 'upload:status', 'message:media-ready']) {
+    for (const eventName of [
+      'notification',
+      'heartbeat',
+      'connected',
+      'upload:status',
+      'message.image_updated',
+      'message:image-updated',
+      'message:media-ready',
+      'message.media_ready',
+    ]) {
       es.addEventListener(eventName, (e: any) => {
         if (!e.data) return;
         try {

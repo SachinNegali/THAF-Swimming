@@ -87,7 +87,7 @@ export interface UploadStatusResponse {
   height?: number;
 }
 
-/** SSE payload for upload:status events */
+/** SSE payload for upload:status events (uploader only) */
 export interface UploadSSEEvent {
   imageId: string;
   messageId: string;
@@ -100,8 +100,25 @@ export interface UploadSSEEvent {
   allImagesComplete?: boolean;
 }
 
-/** SSE payload for message:media-ready events */
+/** SSE payload for message.image_updated events (all group members) */
+export interface MessageImageUpdatedSSEEvent {
+  messageId: string;
+  groupId: string;
+  imageId: string;
+  image: {
+    imageId: string;
+    status: 'pending' | 'uploaded' | 'processing' | 'completed' | 'failed';
+    thumbnailUrl: string | null;
+    optimizedUrl: string | null;
+    width: number | null;
+    height: number | null;
+  };
+  allComplete?: boolean;
+}
+
+/** SSE payload for message.media_ready events (all group members) */
 export interface MediaReadySSEEvent {
   messageId: string;
-  chatId: string;
+  groupId: string;
+  images?: MessageImageUpdatedSSEEvent['image'][];
 }

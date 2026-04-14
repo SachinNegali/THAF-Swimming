@@ -5,10 +5,11 @@
  * Shows progress bar while uploading, processing spinner, or error retry.
  */
 
-import { Colors, SPACING } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 import { useUploadProgress } from '@/hooks/useUploadProgress';
 import { restartUploadFromScratch } from '@/services/upload/UploadManager';
 import { getUpload } from '@/stores/uploadStore';
+import type { MessageImageEntry } from '@/types/api';
 import type { UploadStatus } from '@/types/upload';
 import { Image } from 'expo-image';
 import React, { memo } from 'react';
@@ -22,26 +23,42 @@ import {
 
 interface Props {
   imageId: string;
-  localUri: string;
-  status: UploadStatus;
+  /** Server-reported status (from message.metadata.images[]). */
+  serverStatus: MessageImageEntry['status'];
   thumbnailUrl: string | null;
   optimizedUrl: string | null;
   width: number | null;
   height: number | null;
-  error: string | null;
+  /** Present only on the sender's device while uploading. */
+  localUri?: string | null;
+  localStatus?: UploadStatus;
+  localError?: string | null;
   compact?: boolean;
 }
 
 const ImageUploadThumbnail = memo(
-  ({ imageId, localUri, status, thumbnailUrl, width, height, error, compact }: Props) => {
+  ({
+    imageId,
+    serverStatus,
+    thumbnailUrl,
+    width,
+    height,
+    localUri,
+    localStatus,
+    localError,
+    compact,
+  }: Props) => {
     const progress = useUploadProgress(
-      status === 'uploading' ? imageId : null,
+      localStatus === 'uploading' ? imageId : null,
     );
 
-    // Pick the best image source
+    // Prefer the processed server thumbnail once it's ready, fall back to
+    // the sender's local file while the upload is in flight.
     const source = thumbnailUrl
       ? { uri: thumbnailUrl }
-      : { uri: localUri };
+      : localUri
+        ? { uri: localUri }
+        : undefined;
 
     const aspectRatio =
       width && height ? Math.min(width / height, 2.5) : 4 / 3;
@@ -53,19 +70,34 @@ const ImageUploadThumbnail = memo(
       if (record) restartUploadFromScratch(record);
     };
 
+    // Resolved state: server "completed" trumps everything. Otherwise the
+    // sender's local status drives the overlay; recipients fall back to the
+    // server status.
+    const isCompleted = serverStatus === 'completed';
+    const isFailed =
+      serverStatus === 'failed' || localStatus === 'failed';
+    const displayStatus: UploadStatus | 'server-processing' = isCompleted
+      ? 'completed'
+      : isFailed
+        ? 'failed'
+        : localStatus ?? 'server-processing';
+
     return (
       <View style={[styles.container, { width: imageWidth, height: imageHeight }]}>
-        <Image
-          source={source}
-          style={styles.image}
-          contentFit="cover"
-          transition={200}
-        />
+        {source ? (
+          <Image
+            source={source}
+            style={styles.image}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <View style={[styles.image, styles.emptyTile]} />
+        )}
 
-        {/* ─── Status overlay ──────────────────────────── */}
-        {status !== 'completed' && (
+        {!isCompleted && (
           <View style={styles.overlay}>
-            {status === 'uploading' && (
+            {displayStatus === 'uploading' && (
               <>
                 <View style={styles.progressTrack}>
                   <View
@@ -76,27 +108,32 @@ const ImageUploadThumbnail = memo(
               </>
             )}
 
-            {(status === 'queued' || status === 'requesting-url') && (
+            {(displayStatus === 'queued' ||
+              displayStatus === 'requesting-url') && (
               <>
                 <ActivityIndicator size="small" color="#fff" />
                 <Text style={styles.overlayText}>Waiting...</Text>
               </>
             )}
 
-            {status === 'completing' && (
+            {(displayStatus === 'completing' ||
+              displayStatus === 'server-processing') && (
               <>
                 <ActivityIndicator size="small" color="#fff" />
                 <Text style={styles.overlayText}>Processing...</Text>
               </>
             )}
 
-            {status === 'failed' && (
+            {displayStatus === 'failed' && (
               <TouchableOpacity
                 style={styles.retryButton}
                 onPress={handleRetry}
+                disabled={!localUri}
               >
                 <Text style={styles.retryIcon}>!</Text>
-                <Text style={styles.overlayText}>Tap to retry</Text>
+                <Text style={styles.overlayText}>
+                  {localUri ? 'Tap to retry' : 'Failed'}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -118,6 +155,9 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  emptyTile: {
+    backgroundColor: '#e2e8f0',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,

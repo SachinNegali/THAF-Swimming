@@ -23,8 +23,6 @@ const ChatHeader = memo(({ title, subtitle, balanceLabel, balanceAmount, isDm }:
   const primaryColor = useThemeColor({}, 'tint');
   const borderColor = useThemeColor({}, 'border');
 
-  console.log("FIX SHIT....IS DM", isDm)
-
   return (
     <View style={[styles.header, { backgroundColor: headerBg, borderColor }]}>
       <View style={styles.left}>

@@ -2,14 +2,14 @@ import { Colors, SPACING } from '@/constants/theme';
 import { useSendDMMessage, useSendGroupMessage } from '@/hooks/api/useChats';
 import {
   pickImages,
+  prepareImages,
   startImageUploads,
   type SelectedImage,
 } from '@/hooks/useMediaUpload';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { store } from '@/store';
-import type { ImageMessage, ListItem } from '@/types/chat';
-import type { Message, PaginatedResponse } from '@/types/api';
+import type { Message, MessageImageEntry, PaginatedResponse } from '@/types/api';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -145,53 +145,77 @@ const ChatInput = memo(({ groupId, recipientId }: ChatInputProps) => {
   };
 
   /**
-   * Start image uploads and inject an optimistic image message into the cache.
+   * Flow:
+   *   1. Prepare images (generate client-side imageIds + file sizes).
+   *   2. Create the server message with `metadata.imageIds` — server returns _id.
+   *   3. Inject the server message optimistically into the cache.
+   *   4. Enqueue uploads, keyed by the server-issued message _id.
    */
   const sendWithImages = async (
     chatId: string,
     images: SelectedImage[],
     caption: string,
   ) => {
-    const { messageId, records } = await startImageUploads(chatId, images);
-    const currentUserId = store.getState().auth.user?._id ?? '';
+    const prepared = await prepareImages(images);
+    const imageIds = prepared.map((p) => p.imageId);
 
-    // Inject optimistic image message into React Query cache
-    type MessagesCache = { pages: PaginatedResponse<Message>[]; pageParams: unknown[] };
-
-    const optimisticMessage: Message = {
-      _id: `upload-${messageId}`,
-      group: chatId,
-      sender: currentUserId,
-      content: caption,
-      type: 'image',
-      isDeleted: false,
-      readBy: [],
-      deliveredTo: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      // Extra fields for the upload pipeline (cast as needed)
-      ...(({ _uploadMessageId: messageId }) as any),
-    };
-
-    qc.setQueryData<MessagesCache>(
-      queryKeys.groups.messages(chatId),
-      (old) => {
-        if (!old?.pages?.length) {
-          return {
-            pages: [{ data: [optimisticMessage], pagination: {} as any }],
-            pageParams: [undefined],
-          };
-        }
-        const firstPage = old.pages[0];
-        return {
-          ...old,
-          pages: [
-            { ...firstPage, data: [...firstPage.data, optimisticMessage] },
-            ...old.pages.slice(1),
-          ],
-        };
+    const response = await sendMessage.mutateAsync({
+      groupId: chatId,
+      data: {
+        content: caption,
+        type: 'image',
+        metadata: { imageIds },
       },
-    );
+    });
+
+    // Some endpoints wrap as { data: Message }, others return Message directly
+    const realMsg: Message | undefined =
+      (response as any)?.data ?? (response as any);
+    const serverMessageId = realMsg?._id;
+    if (!serverMessageId) {
+      console.warn('[ChatInput] Could not resolve server messageId from send response');
+      return;
+    }
+
+    // If the server didn't echo a metadata.images array, synthesize pending
+    // placeholders so the UI has something to render immediately.
+    if (!realMsg!.metadata?.images) {
+      const pendingImages: MessageImageEntry[] = imageIds.map((id) => ({
+        imageId: id,
+        status: 'pending',
+        thumbnailUrl: null,
+        optimizedUrl: null,
+        width: null,
+        height: null,
+      }));
+      type MessagesCache = { pages: PaginatedResponse<Message>[]; pageParams: unknown[] };
+      qc.setQueryData<MessagesCache>(
+        queryKeys.groups.messages(chatId),
+        (old) => {
+          if (!old?.pages?.length) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              data: page.data.map((m) =>
+                m._id === serverMessageId
+                  ? {
+                      ...m,
+                      metadata: {
+                        ...(m.metadata ?? {}),
+                        imageIds,
+                        images: pendingImages,
+                      },
+                    }
+                  : m,
+              ),
+            })),
+          };
+        },
+      );
+    }
+
+    startImageUploads(chatId, serverMessageId, prepared);
   };
 
   return (

@@ -49,23 +49,28 @@ export interface TextMessage extends BaseChatMessage {
   status?: 'sent' | 'read';
 }
 
+/**
+ * UI-facing image attachment — merges server state (metadata.images)
+ * with the sender's local upload state (when present).
+ */
+export interface ImageAttachment {
+  imageId: string;
+  /** Server-reported status from `message.metadata.images[]`. */
+  serverStatus: 'pending' | 'uploaded' | 'processing' | 'completed' | 'failed';
+  thumbnailUrl: string | null;
+  optimizedUrl: string | null;
+  width: number | null;
+  height: number | null;
+  /** Present only for the sender while an upload is in-flight. */
+  localUri?: string | null;
+  localStatus?: import('@/types/upload').UploadStatus;
+  localError?: string | null;
+}
+
 export interface ImageMessage extends BaseChatMessage {
   type: 'image';
-  imageUrl: string;
   caption?: string;
-  /** Client-generated messageId linking this message to upload records */
-  uploadMessageId?: string;
-  /** Multiple images attached via the upload pipeline */
-  images?: {
-    imageId: string;
-    localUri: string;
-    status: import('@/types/upload').UploadStatus;
-    thumbnailUrl: string | null;
-    optimizedUrl: string | null;
-    width: number | null;
-    height: number | null;
-    error: string | null;
-  }[];
+  images: ImageAttachment[];
 }
 
 export interface ExpenseMessage extends BaseChatMessage {

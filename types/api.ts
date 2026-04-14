@@ -243,6 +243,21 @@ export interface UpdateMemberRoleRequest {
 
 // ─── Messages ───────────────────────────────────────────
 
+/** Per-image entry in `message.metadata.images` — server-driven. */
+export interface MessageImageEntry {
+  imageId: string;
+  status: 'pending' | 'uploaded' | 'processing' | 'completed' | 'failed';
+  thumbnailUrl: string | null;
+  optimizedUrl: string | null;
+  width: number | null;
+  height: number | null;
+}
+
+export interface MessageMetadata {
+  imageIds?: string[];
+  images?: MessageImageEntry[];
+}
+
 export interface Message {
   _id: string;
   group: string;
@@ -254,11 +269,14 @@ export interface Message {
   deliveredTo: string[];
   createdAt: string;
   updatedAt: string;
+  metadata?: MessageMetadata;
 }
 
 
 export interface SendMessageRequest {
   content: string;
+  type?: 'text' | 'image';
+  metadata?: MessageMetadata;
 }
 
 export interface MessageFilters extends PaginationParams {
@@ -303,6 +321,7 @@ export type SSEEventType =
   | 'trip_updated'
   | 'notification'
   | 'upload_status'
+  | 'message_image_updated'
   | 'message_media_ready';
 
 export interface SSEEvent {

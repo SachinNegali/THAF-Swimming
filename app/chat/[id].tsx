@@ -11,16 +11,16 @@ import {
   useMarkMessageAsRead,
 } from '@/hooks/api/useChats';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { getUploadsByMessage, subscribeUploadStore } from '@/stores/uploadStore';
 import { selectUser } from '@/store/selectors';
+import { getUpload, getUploadSnapshot, subscribeUploadStore } from '@/stores/uploadStore';
 import type { Message } from '@/types/api';
 import type {
   ExpenseMessage,
+  ImageAttachment,
   ImageMessage,
   ListItem,
   TextMessage,
 } from '@/types/chat';
-import { getUploadSnapshot } from '@/stores/uploadStore';
 import { FlashList } from '@shopify/flash-list';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
@@ -75,28 +75,35 @@ function mapMessageToListItem(msg: Message, currentUserId: string): ListItem {
   };
 
   if (msg.type === 'image') {
-    // Check for upload-pipeline images linked via _uploadMessageId
-    const uploadMsgId = (msg as any)._uploadMessageId as string | undefined;
-    const uploads = uploadMsgId ? getUploadsByMessage(uploadMsgId) : [];
+    // Source of truth: server-driven metadata.images[] (all group members).
+    // Merge in the local upload record (sender only) so the sender gets
+    // progress/retry UI while the server hasn't returned final URLs yet.
+    const serverImages = msg.metadata?.images ?? [];
+    const imageIds =
+      serverImages.length > 0
+        ? serverImages.map((i) => i.imageId)
+        : msg.metadata?.imageIds ?? [];
 
-    const images = uploads.length
-      ? uploads.map((u) => ({
-          imageId: u.imageId,
-          localUri: u.localUri,
-          status: u.status,
-          thumbnailUrl: u.thumbnailUrl,
-          optimizedUrl: u.optimizedUrl,
-          width: u.width,
-          height: u.height,
-          error: u.error,
-        }))
-      : undefined;
+    const images: ImageAttachment[] = imageIds.map((imageId) => {
+      const server = serverImages.find((i) => i.imageId === imageId);
+      const local = getUpload(imageId);
+      return {
+        imageId,
+        serverStatus: server?.status ?? 'pending',
+        thumbnailUrl: server?.thumbnailUrl ?? null,
+        optimizedUrl: server?.optimizedUrl ?? null,
+        width: server?.width ?? null,
+        height: server?.height ?? null,
+        localUri: local?.localUri ?? null,
+        localStatus: local?.status,
+        localError: local?.error ?? null,
+      };
+    });
 
     return {
       ...base,
       type: 'image',
-      imageUrl: msg.content,
-      uploadMessageId: uploadMsgId,
+      caption: msg.content,
       images,
     } as ImageMessage & { type: 'image'; _createdAt: string };
   }
@@ -281,8 +288,6 @@ export default function GroupChatScreen() {
     return <ChatBubble item={item as TextMessage | ImageMessage} isDm={isDm}/>;
   }, []);
 
-  console.log("PAGES MATTADE BESARAAAAA... ", Platform.OS, plainPages)
-  console.log("FLATTENED datattat", flattenedData)
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor }}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />

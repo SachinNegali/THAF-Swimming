@@ -1,6 +1,6 @@
-import { CreateGroupBottomSheet } from '@/components/chat/CreateGroupBottomSheet';
 import ChatListCard from '@/components/chat/ChatListCard';
 import ChatListHeader from '@/components/chat/ChatListHeader';
+import { CreateGroupBottomSheet } from '@/components/chat/CreateGroupBottomSheet';
 import { PublicProfileScreen } from '@/components/profile/publicProfile';
 import { MOCK_USER } from '@/dummy-data/journeys';
 import { useGroups } from '@/hooks/api/useChats';
@@ -120,7 +120,6 @@ export default function MessagesScreen() {
     return Array.from(usersMap.values());
   }, [groups, currentUserId]);
 
-  console.log("groups!!!!!!!!......!!!!", groups)
 
   const debouncedQuery = useDebounce(searchQuery, 400);
 
@@ -144,7 +143,6 @@ export default function MessagesScreen() {
     return messages;
   }, [messages, activeTab]);
   
-  console.log("FILTEREDDD MESSAGFESSSS......!!!", filteredMessages)
   const handleSearchToggle = useCallback(() => {
     setIsSearching((prev) => {
       if (prev) setSearchQuery('');
@@ -154,7 +152,6 @@ export default function MessagesScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: MessageItem }) => {
-      console.log("Message item\n", item)
       return(<ChatListCard item={item} />)},
     [],
   );
@@ -186,7 +183,6 @@ export default function MessagesScreen() {
 
   if (isSearching) {
     const searchResults = searchData?.users ?? [];
-    console.log(".....!! Search results...", searchResults)
     return (
       <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -228,7 +224,6 @@ export default function MessagesScreen() {
             setIsOpen(open);
             if (!open) setSelectedUser(null);
           }}
-          onNavigate={() => console.log('navigate')}
         />
       </SafeAreaView>
     );

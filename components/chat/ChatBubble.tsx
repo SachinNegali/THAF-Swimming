@@ -17,37 +17,33 @@ const ChatBubble = memo(({ item, isDm }: ChatBubbleProps) => {
   const primaryColor = useThemeColor({}, 'tint');
   const secondaryTextColor = useThemeColor({}, 'textMuted');
 
-  const renderImageContent = (msg: ImageMessage) => {
-    // New upload-pipeline images (multiple attachments with status)
-    if (msg.images?.length) {
-      return (
+  const renderImageContent = (msg: ImageMessage, captionColor: string) => {
+    if (!msg.images?.length) return null;
+    return (
+      <View>
         <View style={styles.imageGrid}>
           {msg.images.map((img) => (
             <ImageUploadThumbnail
               key={img.imageId}
               imageId={img.imageId}
-              localUri={img.localUri}
-              status={img.status}
+              serverStatus={img.serverStatus}
               thumbnailUrl={img.thumbnailUrl}
               optimizedUrl={img.optimizedUrl}
               width={img.width}
               height={img.height}
-              error={img.error}
-              compact={msg.images!.length > 1}
+              localUri={img.localUri ?? null}
+              localStatus={img.localStatus}
+              localError={img.localError ?? null}
+              compact={msg.images.length > 1}
             />
           ))}
         </View>
-      );
-    }
-
-    // Legacy single-image (server URL)
-    return (
-      <Image
-        source={{ uri: msg.imageUrl }}
-        style={styles.chatImage}
-        contentFit="cover"
-        transition={200}
-      />
+        {msg.caption ? (
+          <Text style={[styles.bubbleText, { color: captionColor, marginTop: 4 }]}>
+            {msg.caption}
+          </Text>
+        ) : null}
+      </View>
     );
   };
 
@@ -57,7 +53,7 @@ const ChatBubble = memo(({ item, isDm }: ChatBubbleProps) => {
       <View style={styles.myMessageContainer}>
         <View style={[styles.myBubble, { backgroundColor: primaryColor }]}>
           {item.type === 'image' ? (
-            renderImageContent(item)
+            renderImageContent(item, item.isMe ? '#fff' : textColor)
           ) : (
             <Text style={[styles.bubbleText, { color: '#fff' }]}>
               {item.content}
@@ -83,7 +79,7 @@ const ChatBubble = memo(({ item, isDm }: ChatBubbleProps) => {
         </Text>
         <View style={[styles.theirBubble, { backgroundColor: '#fff' }]}>
           {item.type === 'image' ? (
-            renderImageContent(item)
+            renderImageContent(item, item.isMe ? '#fff' : textColor)
           ) : (
             <Text style={[styles.bubbleText, { color: textColor }]}>
               {item.content}

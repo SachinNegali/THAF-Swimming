@@ -24,6 +24,9 @@ export async function initUpload(data: UploadInitRequest): Promise<UploadInitRes
     endpoints.media.uploadInit,
     data,
   );
+  console.log("MEDIAAA....", response)
+  console.log("MEDIAAA....", response?.data)
+  console.log("MEDIAAA....", response?.data?.data)
   return response.data.data;
 }
 

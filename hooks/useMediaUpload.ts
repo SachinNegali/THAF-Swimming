@@ -11,12 +11,11 @@
 
 import { processUploadQueue } from '@/services/upload/UploadManager';
 import { getUploadsByMessage, saveUpload, subscribeUploadStore } from '@/stores/uploadStore';
-import { store } from '@/store';
 import type { MediaAttachment, UploadRecord } from '@/types/upload';
 import * as Crypto from 'expo-crypto';
 import { getInfoAsync } from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 
 export interface SelectedImage {
   uri: string;
@@ -77,18 +76,20 @@ export async function pickImages(): Promise<SelectedImage[]> {
 }
 
 /**
- * Create upload records for selected images, persist them,
- * and start the upload pipeline. Returns the messageId and records.
+ * Pre-generate imageIds + (optionally) file-size metadata for a batch
+ * of picked images. Called BEFORE creating the server message so the
+ * client can include `metadata.imageIds` in the POST.
  */
-export async function startImageUploads(
-  chatId: string,
-  selectedImages: SelectedImage[],
-): Promise<{ messageId: string; records: UploadRecord[] }> {
-  const messageId = Crypto.randomUUID();
+export interface PreparedImage extends SelectedImage {
+  imageId: string;
+  sizeBytes: number;
+}
 
-  const records = await Promise.all(
+export async function prepareImages(
+  selectedImages: SelectedImage[],
+): Promise<PreparedImage[]> {
+  return Promise.all(
     selectedImages.map(async (image) => {
-      const imageId = Crypto.randomUUID();
       let fileSize = image.fileSize ?? 0;
       if (!fileSize) {
         try {
@@ -98,35 +99,52 @@ export async function startImageUploads(
           fileSize = 0;
         }
       }
-
-      const record: UploadRecord = {
-        imageId,
-        messageId,
-        chatId,
-        localUri: image.uri,
-        s3Key: null,
-        status: 'queued',
-        presignedUrl: null,
-        thumbnailUrl: null,
-        optimizedUrl: null,
-        width: image.width || null,
-        height: image.height || null,
-        retryCount: 0,
-        createdAt: Date.now(),
-        error: null,
-        mimeType: image.mimeType || 'image/jpeg',
+      return {
+        ...image,
+        imageId: Crypto.randomUUID(),
         sizeBytes: fileSize,
       };
-
-      saveUpload(record);
-      return record;
     }),
   );
+}
+
+/**
+ * Create upload records for prepared images (server message already exists),
+ * persist them, and start the upload pipeline. `messageId` is the server's
+ * Message._id returned from POST /group/:id/messages.
+ */
+export function startImageUploads(
+  chatId: string,
+  messageId: string,
+  prepared: PreparedImage[],
+): UploadRecord[] {
+  const records: UploadRecord[] = prepared.map((image) => {
+    const record: UploadRecord = {
+      imageId: image.imageId,
+      messageId,
+      chatId,
+      localUri: image.uri,
+      s3Key: null,
+      status: 'queued',
+      presignedUrl: null,
+      thumbnailUrl: null,
+      optimizedUrl: null,
+      width: image.width || null,
+      height: image.height || null,
+      retryCount: 0,
+      createdAt: Date.now(),
+      error: null,
+      mimeType: image.mimeType || 'image/jpeg',
+      sizeBytes: image.sizeBytes,
+    };
+    saveUpload(record);
+    return record;
+  });
 
   // Fire and forget — the pipeline updates the store as it progresses
   processUploadQueue(records).catch((e) =>
     console.warn('[useMediaUpload] Queue processing error:', e),
   );
 
-  return { messageId, records };
+  return records;
 }
