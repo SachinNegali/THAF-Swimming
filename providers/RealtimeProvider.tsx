@@ -10,6 +10,7 @@
 import { useSSE } from '@/hooks/api/useSSE';
 import { cleanupCompletedUploads } from '@/services/upload/UploadCleanup';
 import { reconcilePendingUploads } from '@/services/upload/UploadReconciler';
+import { hydrateNudgeStore } from '@/stores/nudgeStore';
 import { hydrateUploadStore } from '@/stores/uploadStore';
 import { selectIsAuthenticated } from '@/store/selectors';
 import React, { useEffect } from 'react';
@@ -31,6 +32,7 @@ export function RealtimeProvider({ children }: RealtimeProviderProps) {
     if (!isAuthenticated) return;
     (async () => {
       await hydrateUploadStore();
+      await hydrateNudgeStore();
       await reconcilePendingUploads();
       await cleanupCompletedUploads();
     })();

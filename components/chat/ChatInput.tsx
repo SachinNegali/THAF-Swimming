@@ -29,9 +29,11 @@ interface ChatInputProps {
   groupId?: string;
   /** Set when this is a pending DM that hasn't been created yet */
   recipientId?: string;
+  /** Opens the Add-Expense sheet. Hidden in pending-DM mode. */
+  onAddExpense?: () => void;
 }
 
-const ChatInput = memo(({ groupId, recipientId }: ChatInputProps) => {
+const ChatInput = memo(({ groupId, recipientId, onAddExpense }: ChatInputProps) => {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
@@ -272,14 +274,18 @@ const ChatInput = memo(({ groupId, recipientId }: ChatInputProps) => {
             onSubmitEditing={handleSend}
             returnKeyType="send"
           />
-          <TouchableOpacity
-            style={[
-              styles.inputAction,
-              { backgroundColor: `${primaryColor}20` },
-            ]}
-          >
-            <Text style={{ color: primaryColor }}>$</Text>
-          </TouchableOpacity>
+          {onAddExpense ? (
+            <TouchableOpacity
+              style={[
+                styles.inputAction,
+                { backgroundColor: `${primaryColor}20` },
+              ]}
+              onPress={onAddExpense}
+              accessibilityLabel="Add expense"
+            >
+              <Text style={{ color: primaryColor, fontWeight: '700' }}>$</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <TouchableOpacity

@@ -12,25 +12,38 @@ function useThemeColor(props: { light?: string; dark?: string }, colorName: keyo
   return Colors[theme][colorName];
 }
 
-export const Header = memo(() => {
+interface HeaderProps {
+  title: string;
+  onBack?: () => void;
+  onEdit?: () => void;
+  onMenu?: () => void;
+}
+
+export const Header = memo(({ title, onBack, onEdit, onMenu }: HeaderProps) => {
   const textColor = useThemeColor({}, 'text');
   const primaryColor = useThemeColor({}, 'tint');
 
   return (
     <View style={[styles.header, { backgroundColor: useThemeColor({ light: 'rgba(255,255,255,0.8)', dark: 'rgba(16, 22, 34, 0.8)' }, 'background') }]}>
       <View style={styles.headerLeft}>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={onBack}>
           <Text style={{ fontSize: 20, color: primaryColor }}>‹</Text>
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: textColor }]}>Summer Roadtrip '24</Text>
+        <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
+          {title}
+        </Text>
       </View>
       <View style={styles.headerRight}>
-        <TouchableOpacity style={styles.headerButton}>
-          <Text style={{ color: primaryColor }}>✎</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.headerButton}>
-          <Text style={{ color: primaryColor }}>⋯</Text>
-        </TouchableOpacity>
+        {onEdit ? (
+          <TouchableOpacity style={styles.headerButton} onPress={onEdit}>
+            <Text style={{ color: primaryColor }}>✎</Text>
+          </TouchableOpacity>
+        ) : null}
+        {onMenu ? (
+          <TouchableOpacity style={styles.headerButton} onPress={onMenu}>
+            <Text style={{ color: primaryColor }}>⋯</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );

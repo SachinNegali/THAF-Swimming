@@ -103,6 +103,29 @@ export const queryKeys = {
     detail: (id: string) => [...queryKeys.users.details(), id] as const,
   },
 
+  // Expenses
+  expenses: {
+    all: ['expenses'] as const,
+    cycles: (groupId: string) =>
+      [...queryKeys.expenses.all, 'group', groupId, 'cycles'] as const,
+    activeCycle: (groupId: string) =>
+      [...queryKeys.expenses.cycles(groupId), 'active'] as const,
+    balances: (groupId: string) =>
+      [...queryKeys.expenses.all, 'group', groupId, 'balances'] as const,
+    summary: (groupId: string) =>
+      [...queryKeys.expenses.all, 'group', groupId, 'summary'] as const,
+    settlements: (groupId: string) =>
+      [...queryKeys.expenses.all, 'group', groupId, 'settlements'] as const,
+    list: (groupId: string, filters?: Record<string, unknown>) =>
+      [...queryKeys.expenses.all, 'group', groupId, 'list', filters ?? {}] as const,
+    detail: (expenseId: string) =>
+      [...queryKeys.expenses.all, 'detail', expenseId] as const,
+    comments: (expenseId: string) =>
+      [...queryKeys.expenses.all, 'detail', expenseId, 'comments'] as const,
+    groupAll: (groupId: string) =>
+      [...queryKeys.expenses.all, 'group', groupId] as const,
+  },
+
   // Notifications
   notifications: {
     all: ['notifications'] as const,

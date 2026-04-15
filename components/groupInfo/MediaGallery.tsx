@@ -1,5 +1,5 @@
 import { FlashList } from '@shopify/flash-list';
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { Colors, SPACING } from '../../constants/theme';
 
@@ -13,54 +13,75 @@ function useThemeColor(props: { light?: string; dark?: string }, colorName: keyo
   return Colors[theme][colorName];
 }
 
-interface MediaItem {
+export interface MediaItem {
   id: string;
   url: string;
-  isAddButton?: boolean;
 }
 
-const MEDIA: MediaItem[] = [
-  { id: '1', url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=200&q=80' },
-  { id: '2', url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=200&q=80' },
-  { id: '3', url: 'https://images.unsplash.com/photo-1439853949127-fa647821eba0?auto=format&fit=crop&w=200&q=80' },
-  { id: 'add', isAddButton: true, url: '' },
-];
+interface MediaGalleryProps {
+  items: MediaItem[];
+  onViewAll?: () => void;
+  onItemPress?: (item: MediaItem) => void;
+}
 
-export const MediaGallery = memo(() => {
+type ListRow = (MediaItem & { isAddButton?: false }) | { id: string; url: ''; isAddButton: true };
+
+export const MediaGallery = memo(({ items, onViewAll, onItemPress }: MediaGalleryProps) => {
   const surfaceColor = useThemeColor({}, 'surface');
   const borderColor = useThemeColor({}, 'border');
   const iconColor = useThemeColor({}, 'icon');
+  const dimColor = useThemeColor({}, 'textDim');
+  const tintColor = useThemeColor({}, 'tint');
+  const mutedColor = useThemeColor({}, 'textMuted');
 
-  const renderMediaItem = useCallback(({ item }: { item: MediaItem }) => {
-    if (item.isAddButton) {
+  const data = useMemo<ListRow[]>(
+    () => [...items, { id: '__add', url: '', isAddButton: true }],
+    [items],
+  );
+
+  const renderMediaItem = useCallback(
+    ({ item }: { item: ListRow }) => {
+      if (item.isAddButton) {
+        return (
+          <TouchableOpacity
+            style={[styles.mediaItem, styles.addMediaButton, { borderColor, backgroundColor: surfaceColor }]}
+          >
+            <Text style={{ fontSize: 24, color: iconColor }}>+</Text>
+          </TouchableOpacity>
+        );
+      }
       return (
-        <TouchableOpacity style={[styles.mediaItem, styles.addMediaButton, { borderColor, backgroundColor: surfaceColor }]}>
-          <Text style={{ fontSize: 24, color: iconColor}}>+</Text>
+        <TouchableOpacity onPress={() => onItemPress?.(item)} activeOpacity={0.8}>
+          <Image source={{ uri: item.url }} style={styles.mediaItem} />
         </TouchableOpacity>
       );
-    }
-    return (
-      <Image source={{ uri: item.url }} style={styles.mediaItem} />
-    );
-  }, [borderColor, surfaceColor]);
+    },
+    [borderColor, surfaceColor, iconColor, onItemPress],
+  );
 
   return (
     <View style={styles.mediaSection}>
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: useThemeColor({}, 'textDim') }]}>SHARED MEDIA</Text>
-        <TouchableOpacity>
-          <Text style={[styles.viewAll, { color: useThemeColor({}, 'tint') }]}>View All</Text>
-        </TouchableOpacity>
+        <Text style={[styles.sectionTitle, { color: dimColor }]}>SHARED MEDIA</Text>
+        {onViewAll && items.length > 0 ? (
+          <TouchableOpacity onPress={onViewAll}>
+            <Text style={[styles.viewAll, { color: tintColor }]}>View All</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
-      <FlashList
-        data={MEDIA}
-        renderItem={renderMediaItem}
-        keyExtractor={(item) => item.id}
-        // estimatedItemSize={80}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: SPACING.md }}
-      />
+      {items.length === 0 ? (
+        <Text style={[styles.emptyText, { color: mutedColor }]}>No shared media yet.</Text>
+      ) : (
+        <FlashList
+          data={data}
+          renderItem={renderMediaItem}
+          keyExtractor={(item) => item.id}
+          // estimatedItemSize={80}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: SPACING.md }}
+        />
+      )}
     </View>
   );
 });
@@ -96,5 +117,10 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  emptyText: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    fontSize: 13,
   },
 });

@@ -1,180 +1,140 @@
-import { FlashList } from '@shopify/flash-list';
-import React, { useCallback, useMemo } from 'react';
+import ExpensesTab from '@/components/groupInfo/ExpensesTab';
+import { useGroup, useGroupMessages } from '@/hooks/api/useChats';
+import { selectUser } from '@/store/selectors';
+import type { Message } from '@/types/api';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useMemo } from 'react';
 import {
+  ActivityIndicator,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
-  useColorScheme
+  useColorScheme,
 } from 'react-native';
+import { useSelector } from 'react-redux';
 import { BottomActions } from '../../components/groupInfo/BottomActions';
-import { DebtItem, type Debt } from '../../components/groupInfo/DebtItem';
-import { ExpenseItem, type Expense } from '../../components/groupInfo/ExpenseItem';
-import { GroupIdentity } from '../../components/groupInfo/GroupIdentity';
+import { GroupIdentity, type GroupIdentityMember } from '../../components/groupInfo/GroupIdentity';
 import { Header } from '../../components/groupInfo/Header';
-import { MediaGallery } from '../../components/groupInfo/MediaGallery';
-import { SummaryCard } from '../../components/groupInfo/SummaryCard';
-import { Colors, SPACING } from '../../constants/theme';
+import { MediaGallery, type MediaItem } from '../../components/groupInfo/MediaGallery';
+import { Colors } from '../../constants/theme';
 
-// --- Helper Hook for Theme Colors ---
-
-function useThemeColor(props: { light?: string; dark?: string }, colorName: keyof typeof Colors.light) {
+function useThemeColor(
+  props: { light?: string; dark?: string },
+  colorName: keyof typeof Colors.light,
+) {
   const theme = useColorScheme() ?? 'light';
   const colorFromProps = props[theme];
-
-  if (colorFromProps) {
-    return colorFromProps;
-  }
+  if (colorFromProps) return colorFromProps;
   return Colors[theme][colorName];
 }
 
-// --- Mock Data ---
-
-const DEBTS: Debt[] = [
-  { id: '1', from: { id: '1', name: 'Alice', avatar: 'https://i.pravatar.cc/150?u=alice' }, to: 'Bob', amount: 15.00, isOwedToMe: false },
-  { id: '2', from: { id: '3', name: 'Charlie', avatar: 'https://i.pravatar.cc/150?u=charlie' }, to: 'You', amount: 243.25, isOwedToMe: true },
-];
-
-const EXPENSES: Expense[] = [
-  { id: '1', title: 'Group Dinner at Alpine Lodge', paidBy: 'Alice', date: 'Yesterday', amount: 184.20, category: 'food' },
-  { id: '2', title: 'Gas Refill - Shell Station', paidBy: 'You', date: '2 days ago', amount: 65.00, category: 'transport' },
-  { id: '3', title: 'AirBnB Booking', paidBy: 'Charlie', date: '3 days ago', amount: 991.30, category: 'accommodation' },
-];
-
-// --- Types for FlashList Items ---
-
-type ListItem = 
-  | { type: 'header' }
-  | { type: 'identity' }
-  | { type: 'media' }
-  | { type: 'summary' }
-  | { type: 'debts-header' }
-  | { type: 'debt'; data: Debt }
-  | { type: 'expenses-header' }
-  | { type: 'expense'; data: Expense };
-
-// --- Main Screen ---
-
 export default function GroupInfoScreen() {
   const backgroundColor = useThemeColor({}, 'background');
-  const textDimColor = useThemeColor({}, 'textDim');
-  const tintColor = useThemeColor({}, 'tint');
+  const mutedColor = useThemeColor({}, 'textMuted');
 
-  // Flatten all data into a single array for FlashList
-  const listData = useMemo<ListItem[]>(() => {
-    const items: ListItem[] = [
-      { type: 'header' },
-      { type: 'identity' },
-      { type: 'media' },
-      { type: 'summary' },
-      { type: 'debts-header' },
-      ...DEBTS.map(debt => ({ type: 'debt' as const, data: debt })),
-      { type: 'expenses-header' },
-      ...EXPENSES.map(expense => ({ type: 'expense' as const, data: expense })),
-    ];
-    return items;
-  }, []);
+  const { id, name: nameParam, isDm: isDmParam } = useLocalSearchParams<{
+    id: string;
+    name?: string;
+    isDm?: string;
+  }>();
+  const groupId = id ?? '';
 
-  const renderItem = useCallback(({ item }: { item: ListItem }) => {
-    switch (item.type) {
-      case 'header':
-        return <Header />;
-      case 'identity':
-        return <GroupIdentity />;
-      case 'media':
-        return <MediaGallery />;
-      case 'summary':
-        return (
-          <View style={styles.sectionContainer}>
-            <SummaryCard />
-          </View>
-        );
-      case 'debts-header':
-        return (
-          <View style={styles.sectionContainer}>
-            <Text style={[styles.sectionTitle, { color: textDimColor }]}>
-              SETTLEMENT ENGINE
-            </Text>
-          </View>
-        );
-      case 'debt':
-        return (
-          <View style={styles.debtContainer}>
-            <DebtItem debt={item.data} />
-          </View>
-        );
-      case 'expenses-header':
-        return (
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: textDimColor }]}>EXPENSE HISTORY</Text>
-              <TouchableOpacity>
-                <Text style={[styles.viewAll, { color: tintColor }]}>See All</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        );
-      case 'expense':
-        return (
-          <View style={styles.expenseContainer}>
-            <ExpenseItem expense={item.data} />
-          </View>
-        );
-      default:
-        return null;
+  const currentUser = useSelector(selectUser);
+  const currentUserId = currentUser?._id ?? '';
+
+  const { data: group, isLoading: groupLoading } = useGroup(groupId, !!groupId);
+  const { data: messagePages } = useGroupMessages(groupId, undefined, undefined, !!groupId);
+
+  const isDm = (group?.type ?? (isDmParam === '1' ? 'dm' : undefined)) === 'dm';
+
+  const displayName = useMemo(() => {
+    if (group?.name) return group.name;
+    if (isDm && currentUserId && group?.members?.length) {
+      const other = group.members.find((m) => m.userId !== currentUserId);
+      const first = other?.user?.fName ?? '';
+      const last = other?.user?.lName ?? '';
+      const full = `${first} ${last}`.trim();
+      if (full) return full;
     }
-  }, [textDimColor, tintColor]);
+    return nameParam ?? 'Group';
+  }, [group, isDm, currentUserId, nameParam]);
 
-  const getItemType = useCallback((item: ListItem) => {
-    return item.type;
-  }, []);
+  const members = useMemo<GroupIdentityMember[]>(() => {
+    if (!group?.members) return [];
+    return group.members.map((m) => {
+      const first = m.user?.fName ?? '';
+      const last = m.user?.lName ?? '';
+      const full = `${first} ${last}`.trim();
+      const isMe = m.userId === currentUserId;
+      return {
+        id: m.userId || m._id || `${first}-${last}`,
+        name: isMe ? 'You' : full || m.user?.email || 'Member',
+      };
+    });
+  }, [group?.members, currentUserId]);
+
+  const mediaItems = useMemo<MediaItem[]>(() => {
+    const pages = messagePages?.pages ?? [];
+    const messages: Message[] = pages.flatMap((p) => p.data ?? []);
+    const out: MediaItem[] = [];
+    for (const msg of messages) {
+      if (msg.type !== 'image') continue;
+      const images = msg.metadata?.images ?? [];
+      for (const img of images) {
+        const url = img.thumbnailUrl ?? img.optimizedUrl;
+        if (url) out.push({ id: img.imageId, url });
+      }
+    }
+    return out;
+  }, [messagePages]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]}>
-      <FlashList
-        data={listData}
-        renderItem={renderItem}
-        keyExtractor={(item, index) => `${item.type}-${index}`}
-        // estimatedItemSize={100}
-        getItemType={getItemType}
-        contentContainerStyle={{ paddingBottom: 140 }}
-        showsVerticalScrollIndicator={false}
+      <Header title={displayName} onBack={() => router.back()} />
+      {groupLoading && !group ? (
+        <View style={styles.centered}>
+          <ActivityIndicator />
+          <Text style={[styles.loadingText, { color: mutedColor }]}>Loading…</Text>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 140 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <GroupIdentity
+            name={displayName}
+            createdAt={group?.createdAt}
+            members={members}
+          />
+          <MediaGallery items={mediaItems} />
+          {groupId && !isDm ? <ExpensesTab groupId={groupId} /> : null}
+        </ScrollView>
+      )}
+      <BottomActions
+        hidden={isDm}
+        onAddExpense={
+          !isDm && groupId
+            ? () => router.push(`/chat/${groupId}`)
+            : undefined
+        }
       />
-      <BottomActions />
     </SafeAreaView>
   );
 }
-
-// --- Styles ---
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  sectionContainer: {
-    paddingHorizontal: SPACING.md,
-    marginTop: SPACING.lg,
-  },
-  debtContainer: {
-    paddingHorizontal: SPACING.md,
-  },
-  expenseContainer: {
-    paddingHorizontal: SPACING.md,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
   },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  viewAll: {
-    fontSize: 12,
-    fontWeight: '700',
+  loadingText: {
+    marginTop: 8,
+    fontSize: 13,
   },
 });

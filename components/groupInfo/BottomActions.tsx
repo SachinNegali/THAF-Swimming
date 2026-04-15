@@ -12,22 +12,49 @@ function useThemeColor(props: { light?: string; dark?: string }, colorName: keyo
   return Colors[theme][colorName];
 }
 
-export const BottomActions = memo(() => {
-  const primaryColor = useThemeColor({}, 'tint');
-  const surfaceColor = useThemeColor({}, 'surface');
-  const textColor = useThemeColor({}, 'text');
+interface BottomActionsProps {
+  onAddExpense?: () => void;
+  onStartSession?: () => void;
+  /** Hide entire bar, e.g. for DMs where these actions don't apply. */
+  hidden?: boolean;
+}
 
-  return (
-    <View style={[styles.bottomContainer, { backgroundColor: useThemeColor({ light: 'rgba(255,255,255,0.9)', dark: 'rgba(16, 22, 34, 0.9)' }, 'background') }]}>
-      <TouchableOpacity style={[styles.primaryButton, { backgroundColor: primaryColor }]}>
-        <Text style={styles.primaryButtonText}>+ Add New Expense</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.secondaryButton, { backgroundColor: surfaceColor }]}>
-        <Text style={[styles.secondaryButtonText, { color: textColor }]}>↻ Start New Expense Session</Text>
-      </TouchableOpacity>
-    </View>
-  );
-});
+export const BottomActions = memo(
+  ({ onAddExpense, onStartSession, hidden }: BottomActionsProps) => {
+    const primaryColor = useThemeColor({}, 'tint');
+    const surfaceColor = useThemeColor({}, 'surface');
+    const textColor = useThemeColor({}, 'text');
+    const barBg = useThemeColor(
+      { light: 'rgba(255,255,255,0.9)', dark: 'rgba(16, 22, 34, 0.9)' },
+      'background',
+    );
+
+    if (hidden || (!onAddExpense && !onStartSession)) return null;
+
+    return (
+      <View style={[styles.bottomContainer, { backgroundColor: barBg }]}>
+        {onAddExpense ? (
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: primaryColor }]}
+            onPress={onAddExpense}
+          >
+            <Text style={styles.primaryButtonText}>+ Add New Expense</Text>
+          </TouchableOpacity>
+        ) : null}
+        {onStartSession ? (
+          <TouchableOpacity
+            style={[styles.secondaryButton, { backgroundColor: surfaceColor }]}
+            onPress={onStartSession}
+          >
+            <Text style={[styles.secondaryButtonText, { color: textColor }]}>
+              ↻ Start New Expense Session
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  },
+);
 
 const styles = StyleSheet.create({
   bottomContainer: {

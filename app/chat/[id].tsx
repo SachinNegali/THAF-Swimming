@@ -1,8 +1,12 @@
+import AddExpenseSheet from '@/components/chat/AddExpenseSheet';
 import ChatBubble from '@/components/chat/ChatBubble';
 import ChatHeader from '@/components/chat/ChatHeader';
 import ChatInput from '@/components/chat/ChatInput';
 import DateHeader from '@/components/chat/DateHeader';
 import ExpenseCard from '@/components/chat/ExpenseCard';
+import ExpenseDetailSheet from '@/components/chat/ExpenseDetailSheet';
+import SpendBubble from '@/components/chat/SpendBubble';
+import { useDeleteExpense } from '@/hooks/api/useExpenses';
 import { SPACING } from '@/constants/theme';
 import {
   useFindDM,
@@ -19,6 +23,7 @@ import type {
   ImageAttachment,
   ImageMessage,
   ListItem,
+  SpendMessage,
   TextMessage,
 } from '@/types/chat';
 import { FlashList } from '@shopify/flash-list';
@@ -73,6 +78,35 @@ function mapMessageToListItem(msg: Message, currentUserId: string): ListItem {
     isMe,
     _createdAt: msg.createdAt, // raw ISO — used by insertDateHeaders
   };
+
+  if (msg.type === 'spend') {
+    const spend = msg.metadata?.spend;
+    if (!spend) {
+      return {
+        ...base,
+        type: 'text',
+        content: msg.content,
+        status: 'sent',
+      } as TextMessage & { type: 'text'; _createdAt: string };
+    }
+    const item: SpendMessage & { _createdAt: string } = {
+      ...base,
+      type: 'spend',
+      expenseId: spend.expenseId,
+      amount: spend.amount,
+      currency: spend.currency,
+      category: spend.category,
+      note: spend.note,
+      imageUrl: spend.imageUrl ?? null,
+      splitCount: spend.splitCount,
+      paidBy: spend.paidBy,
+      createdBy: spend.createdBy ?? msg.createdBy ?? msg.sender,
+      createdAtIso: msg.createdAt,
+      content: msg.content,
+      _createdAt: msg.createdAt,
+    };
+    return item;
+  }
 
   if (msg.type === 'image') {
     // Source of truth: server-driven metadata.images[] (all group members).
@@ -269,9 +303,37 @@ export default function GroupChatScreen() {
     isNearBottomRef.current = distanceFromBottom < 150;
   }, []);
 
+  // ─── Expense flow state ────────────────────────────────
+  const [addExpenseOpen, setAddExpenseOpen] = React.useState(false);
+  const [editingExpenseId, setEditingExpenseId] = React.useState<string | null>(null);
+  const [detailExpenseId, setDetailExpenseId] = React.useState<string | null>(null);
+
+  const deleteExpense = useDeleteExpense(groupId ?? '');
+
+  const handleEditSpend = useCallback((expenseId: string) => {
+    setEditingExpenseId(expenseId);
+    setAddExpenseOpen(true);
+  }, []);
+
+  const handleDeleteSpend = useCallback(
+    (expenseId: string) => {
+      if (!groupId) return;
+      deleteExpense.mutate(expenseId, {
+        onError: (err: any) => {
+          console.warn('[Chat] Delete expense failed:', err?.message);
+        },
+      });
+    },
+    [groupId, deleteExpense],
+  );
+
+  const handleOpenDetail = useCallback((expenseId: string) => {
+    setDetailExpenseId(expenseId);
+  }, []);
+
   // ─── Render ────────────────────────────────────────────
   const keyExtractor = useCallback((item: ListItem) => item.id, []);
-  
+
   const renderItem = useCallback(({ item, isDm }: { item: ListItem, isDm: boolean }) => {
     if ('title' in item && !('senderId' in item)) {
       return (
@@ -285,14 +347,32 @@ export default function GroupChatScreen() {
     if (item.type === 'expense') {
       return <ExpenseCard item={item as ExpenseMessage} />;
     }
+    if (item.type === 'spend') {
+      const spendItem = item as SpendMessage;
+      return (
+        <SpendBubble
+          item={spendItem}
+          groupId={groupId ?? ''}
+          isCreator={spendItem.createdBy === currentUserId}
+          onEdit={handleEditSpend}
+          onDelete={handleDeleteSpend}
+          onOpenDetail={handleOpenDetail}
+        />
+      );
+    }
     return <ChatBubble item={item as TextMessage | ImageMessage} isDm={isDm}/>;
-  }, []);
+  }, [groupId, currentUserId, handleEditSpend, handleDeleteSpend, handleOpenDetail]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor }}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <ChatHeader title={headerTitle} subtitle={memberNames} isDm={group?.type === 'dm'}/>
+      <ChatHeader
+        title={headerTitle}
+        subtitle={memberNames}
+        isDm={group?.type === 'dm'}
+        groupId={!isPendingDM ? groupId : undefined}
+      />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -340,8 +420,39 @@ export default function GroupChatScreen() {
         <ChatInput
           groupId={isPendingDM ? undefined : groupId}
           recipientId={isPendingDM ? recipientId : undefined}
+          onAddExpense={
+            !isPendingDM && groupId ? () => {
+              setEditingExpenseId(null);
+              setAddExpenseOpen(true);
+            } : undefined
+          }
         />
       </KeyboardAvoidingView>
+
+      {groupId && !isPendingDM ? (
+        <>
+          <AddExpenseSheet
+            visible={addExpenseOpen}
+            onClose={() => {
+              setAddExpenseOpen(false);
+              setEditingExpenseId(null);
+            }}
+            groupId={groupId}
+            editingExpenseId={editingExpenseId}
+          />
+          <ExpenseDetailSheet
+            visible={!!detailExpenseId}
+            expenseId={detailExpenseId}
+            groupId={groupId}
+            onClose={() => setDetailExpenseId(null)}
+            onEdit={(id) => {
+              setDetailExpenseId(null);
+              setEditingExpenseId(id);
+              setAddExpenseOpen(true);
+            }}
+          />
+        </>
+      ) : null}
     </SafeAreaView>
   );
 }

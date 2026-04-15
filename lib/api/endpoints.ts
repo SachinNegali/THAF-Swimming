@@ -123,6 +123,38 @@ export const endpoints = {
     poll: '/sse/poll',
   },
 
+  // ─── Expenses / Cycles / Settlements ─────────────────
+  expenses: {
+    // Cycles
+    cycles: (groupId: string) => `/expense/${groupId}/cycles`,
+    activeCycle: (groupId: string) => `/expense/${groupId}/cycles/active`,
+    createCycle: (groupId: string) => `/expense/${groupId}/cycles`,
+    // Expenses
+    list: (groupId: string) => `/expense/${groupId}/expenses`,
+    create: (groupId: string) => `/expense/${groupId}/expenses`,
+    byId: (groupId: string, expenseId: string) =>
+      `/expense/${groupId}/expenses/${expenseId}`,
+    update: (groupId: string, expenseId: string) =>
+      `/expense/${groupId}/expenses/${expenseId}`,
+    delete: (groupId: string, expenseId: string) =>
+      `/expense/${groupId}/expenses/${expenseId}`,
+    // Balances/summary
+    balances: (groupId: string) => `/expense/${groupId}/balances`,
+    summary: (groupId: string) => `/expense/${groupId}/summary`,
+    // Settlements
+    settlements: (groupId: string) => `/expense/${groupId}/settlements`,
+    createSettlement: (groupId: string) => `/expense/${groupId}/settlements`,
+    confirmSettlement: (groupId: string, settlementId: string) =>
+      `/expense/${groupId}/settlements/${settlementId}/confirm`,
+    cancelSettlement: (groupId: string, settlementId: string) =>
+      `/expense/${groupId}/settlements/${settlementId}/cancel`,
+    // Nudge
+    nudge: (groupId: string) => `/expense/${groupId}/nudge`,
+    // Comments
+    comments: (groupId: string, expenseId: string) =>
+      `/expense/${groupId}/expenses/${expenseId}/comments`,
+  },
+
   // ─── Notifications ───────────────────────────────────
   notifications: {
     base: '/notification',

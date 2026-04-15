@@ -256,6 +256,8 @@ export interface MessageImageEntry {
 export interface MessageMetadata {
   imageIds?: string[];
   images?: MessageImageEntry[];
+  /** Present on `type === 'spend'` messages. */
+  spend?: import('./expenses').SpendMessageMetadata;
 }
 
 export interface Message {
@@ -263,13 +265,15 @@ export interface Message {
   group: string;
   sender: string;
   content: string;
-  type: 'text' | 'image' | 'file';
+  type: 'text' | 'image' | 'file' | 'spend';
   isDeleted: boolean;
   readBy: string[];
   deliveredTo: string[];
   createdAt: string;
   updatedAt: string;
   metadata?: MessageMetadata;
+  /** Spend-message creator (mirrors sender but scoped to expenses). */
+  createdBy?: string;
 }
 
 
@@ -312,6 +316,7 @@ export interface UserFilters extends PaginationParams {
 
 export type SSEEventType =
   | 'new_message'
+  | 'message_updated'
   | 'message_deleted'
   | 'message_read'
   | 'group_updated'
@@ -322,7 +327,9 @@ export type SSEEventType =
   | 'notification'
   | 'upload_status'
   | 'message_image_updated'
-  | 'message_media_ready';
+  | 'message_media_ready'
+  | 'settlement_updated'
+  | 'expense_settled';
 
 export interface SSEEvent {
   type: SSEEventType;

@@ -3,8 +3,8 @@ import { API_BASE_URL, endpoints } from '@/lib/api/endpoints';
 import { logApiError } from '@/lib/api/errorHandler';
 import { showLocalMessageNotification } from '@/lib/notifications';
 import { queryKeys } from '@/lib/react-query/queryClient';
-import { updateUpload } from '@/stores/uploadStore';
 import { store } from '@/store';
+import { updateUpload } from '@/stores/uploadStore';
 import type { Group, Message, PaginatedResponse, SSEEvent, SSEEventType } from '@/types/api';
 import type {
   MediaReadySSEEvent,
@@ -23,6 +23,8 @@ type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'polling';
 function normalizeEventType(serverType: string): SSEEventType {
   const map: Record<string, SSEEventType> = {
     'message.new': 'new_message',
+    'message.updated': 'message_updated',
+    'message:updated': 'message_updated',
     'message.deleted': 'message_deleted',
     'message.read': 'message_read',
     'group.updated': 'group_updated',
@@ -38,6 +40,10 @@ function normalizeEventType(serverType: string): SSEEventType {
     'message:media-ready': 'message_media_ready',
     'message.media-ready': 'message_media_ready',
     'message.media_ready': 'message_media_ready',
+    'settlement.updated': 'settlement_updated',
+    'settlement:updated': 'settlement_updated',
+    'expense.settled': 'expense_settled',
+    'expense:settled': 'expense_settled',
   };
   return map[serverType] ?? 'notification';
 }
@@ -77,18 +83,33 @@ export function useSSE(enabled = true) {
       switch (type) {
         case 'new_message':
           if (groupId) {
-            // Append the new message to the cache instead of refetching
+            // Backend may push either (a) a flat shape { messageId, message, senderId }
+            // or (b) a full Message document (spend messages include metadata.spend).
+            const fullMsg = data.message && typeof data.message === 'object'
+              ? (data.message as Partial<Message>)
+              : null;
+
+            const inferredType: Message['type'] =
+              (fullMsg?.type as Message['type']) ?? (data.type as Message['type']) ?? 'text';
+
+            const contentStr = fullMsg?.content ??
+              (typeof data.message === 'string' ? (data.message as string) : (data.content as string)) ?? '';
+
+            const metadata = fullMsg?.metadata ?? (data.metadata as Message['metadata']);
+
             const newMessage: Message = {
-              _id: (data.messageId as string) ?? '',
+              _id: (fullMsg?._id as string) ?? (data.messageId as string) ?? '',
               group: groupId,
-              sender: (data.senderId as string) ?? '',
-              content: (data.message as string) ?? '',
-              type: 'text',
-              isDeleted: false,
-              readBy: [],
-              deliveredTo: [],
-              createdAt: (data.createdAt as string) ?? new Date().toISOString(),
-              updatedAt: (data.createdAt as string) ?? new Date().toISOString(),
+              sender: (fullMsg?.sender as string) ?? (data.senderId as string) ?? '',
+              content: contentStr,
+              type: inferredType,
+              isDeleted: !!fullMsg?.isDeleted,
+              readBy: (fullMsg?.readBy as string[]) ?? [],
+              deliveredTo: (fullMsg?.deliveredTo as string[]) ?? [],
+              createdAt: (fullMsg?.createdAt as string) ?? (data.createdAt as string) ?? new Date().toISOString(),
+              updatedAt: (fullMsg?.updatedAt as string) ?? (data.createdAt as string) ?? new Date().toISOString(),
+              metadata,
+              createdBy: (fullMsg?.createdBy as string) ?? (data.createdBy as string),
             };
             console.log("NEW MESSAGE", newMessage)
 
@@ -120,6 +141,13 @@ export function useSSE(enabled = true) {
             console.log("KAB0OOOM", qc.setQueryData(queryKeys.groups.messages(groupId), updater));
             qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
 
+            // If this is a spend message, also refresh balances/summary/expenses.
+            if (newMessage.type === 'spend') {
+              qc.invalidateQueries({
+                queryKey: queryKeys.expenses.groupAll(groupId),
+              });
+            }
+
             // Show a local notification for the incoming message
             // Look up group info from the cached groups list
             const cachedGroups = qc.getQueryData<Group[]>(queryKeys.groups.list());
@@ -147,11 +175,92 @@ export function useSSE(enabled = true) {
             });
           }
           break;
+        case 'message_updated': {
+          if (!groupId) break;
+          const messageId = (data.messageId as string) ?? (data._id as string);
+          const nextContent = data.content as string | undefined;
+          const nextMetadata = data.metadata as Message['metadata'] | undefined;
+          type MessagesCache =
+            | { pages: PaginatedResponse<Message>[]; pageParams: unknown[] }
+            | undefined;
+          qc.setQueryData<MessagesCache>(
+            queryKeys.groups.messages(groupId),
+            (old) => {
+              if (!old?.pages?.length || !messageId) return old;
+              return {
+                ...old,
+                pages: old.pages.map((page) => ({
+                  ...page,
+                  data: page.data.map((m) =>
+                    m._id === messageId
+                      ? {
+                          ...m,
+                          content: nextContent ?? m.content,
+                          metadata: nextMetadata
+                            ? { ...(m.metadata ?? {}), ...nextMetadata }
+                            : m.metadata,
+                          updatedAt: new Date().toISOString(),
+                        }
+                      : m,
+                  ),
+                })),
+              };
+            },
+          );
+          qc.invalidateQueries({
+            queryKey: queryKeys.expenses.groupAll(groupId),
+          });
+          break;
+        }
         case 'message_deleted':
         case 'message_read':
           if (groupId) {
-            qc.invalidateQueries({ queryKey: queryKeys.groups.messages(groupId) });
+            const messageId =
+              (data.messageId as string) ?? (data._id as string);
+            if (type === 'message_deleted' && messageId) {
+              type MessagesCache =
+                | { pages: PaginatedResponse<Message>[]; pageParams: unknown[] }
+                | undefined;
+              qc.setQueryData<MessagesCache>(
+                queryKeys.groups.messages(groupId),
+                (old) => {
+                  if (!old?.pages?.length) return old;
+                  return {
+                    ...old,
+                    pages: old.pages.map((page) => ({
+                      ...page,
+                      data: page.data.filter((m) => m._id !== messageId),
+                    })),
+                  };
+                },
+              );
+              qc.invalidateQueries({
+                queryKey: queryKeys.expenses.groupAll(groupId),
+              });
+            } else {
+              qc.invalidateQueries({ queryKey: queryKeys.groups.messages(groupId) });
+            }
             qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+          }
+          break;
+        case 'settlement_updated':
+          if (groupId) {
+            qc.invalidateQueries({
+              queryKey: queryKeys.expenses.balances(groupId),
+            });
+            qc.invalidateQueries({
+              queryKey: queryKeys.expenses.settlements(groupId),
+            });
+          }
+          break;
+        case 'expense_settled':
+          if (groupId) {
+            qc.invalidateQueries({
+              queryKey: queryKeys.expenses.balances(groupId),
+            });
+            qc.invalidateQueries({
+              queryKey: queryKeys.expenses.settlements(groupId),
+            });
           }
           break;
         case 'group_updated':
@@ -367,6 +476,7 @@ export function useSSE(enabled = true) {
     es.addEventListener('message', (e: any) => {
       if (!e.data) return;
       try {
+        console.log("PARSEDD THIS IS E DATA....", e.data)
         const parsed = JSON.parse(e.data);
         console.log("PARSEDD...", parsed)
         // Skip heartbeat events
@@ -397,10 +507,19 @@ export function useSSE(enabled = true) {
       'message:image-updated',
       'message:media-ready',
       'message.media_ready',
+      'message.updated',
+      'message:updated',
+      'message.deleted',
+      'settlement.updated',
+      'settlement:updated',
+      'expense.settled',
+      'expense:settled',
     ]) {
-      es.addEventListener(eventName, (e: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (es as any).addEventListener(eventName, (e: any) => {
         if (!e.data) return;
         try {
+          console.log(" PARSEDD THIS IS E DATA....2", e.data)
           const parsed = JSON.parse(e.data);
           console.log("PARSEDD...2", parsed)
           if (eventName === 'heartbeat' || eventName === 'connected') return;

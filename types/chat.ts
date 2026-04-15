@@ -31,7 +31,7 @@ export type MessageItem = TripMessage | DMMessage;
 
 // ─── Conversation Types ─────────────────────────────────
 
-export type ChatMessageType = 'text' | 'image' | 'expense';
+export type ChatMessageType = 'text' | 'image' | 'expense' | 'spend';
 
 export interface BaseChatMessage {
   id: string;
@@ -80,7 +80,23 @@ export interface ExpenseMessage extends BaseChatMessage {
   description: string;
 }
 
-export type ChatItem = TextMessage | ImageMessage | ExpenseMessage;
+export interface SpendMessage extends BaseChatMessage {
+  type: 'spend';
+  expenseId: string;
+  amount: number;
+  currency: string;
+  category: string;
+  note?: string;
+  imageUrl?: string | null;
+  splitCount: number;
+  paidBy: { _id: string; name: string };
+  createdBy: string;
+  /** Raw ISO of message creation — used for the 10-min edit window check. */
+  createdAtIso: string;
+  content: string;
+}
+
+export type ChatItem = TextMessage | ImageMessage | ExpenseMessage | SpendMessage;
 
 export interface ChatSection {
   title: string;

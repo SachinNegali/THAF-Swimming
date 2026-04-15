@@ -11,9 +11,11 @@ interface ChatHeaderProps {
   balanceLabel?: string;
   balanceAmount?: string;
   isDm?: boolean;
+  /** Real group id — required to navigate into Group Info. */
+  groupId?: string;
 }
 
-const ChatHeader = memo(({ title, subtitle, balanceLabel, balanceAmount, isDm }: ChatHeaderProps) => {
+const ChatHeader = memo(({ title, subtitle, balanceLabel, balanceAmount, isDm, groupId }: ChatHeaderProps) => {
   const headerBg = useThemeColor(
     { light: 'rgba(255,255,255,0.8)', dark: 'rgba(16, 22, 34, 0.8)' },
     'background',
@@ -29,7 +31,17 @@ const ChatHeader = memo(({ title, subtitle, balanceLabel, balanceAmount, isDm }:
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={{ fontSize: 20, color: textColor }}>‹</Text>
         </TouchableOpacity>
-        <Pressable style={styles.info} onPress={() => router.push('/groupInfo/[id]')}>
+        <Pressable
+          style={styles.info}
+          disabled={!groupId}
+          onPress={() =>
+            groupId &&
+            router.push({
+              pathname: '/groupInfo/[id]',
+              params: { id: groupId, name: title, isDm: isDm ? '1' : '0' },
+            })
+          }
+        >
           <Text style={[styles.title, { color: textColor }]}>{title}</Text>
           {!isDm && <Text style={[styles.subtitle, { color: mutedColor }]}>{subtitle}</Text>}
         </Pressable>
