@@ -81,6 +81,14 @@ export const endpoints = {
     search: '/user/search',
   },
 
+  // ─── Profile (blood group, address, emergency contacts) ─
+  profile: {
+    base: '/profile',
+    emergencyContacts: '/profile/emergency-contacts',
+    emergencyContact: (contactId: string) =>
+      `/profile/emergency-contacts/${contactId}`,
+  },
+
   // ─── Device registration ──────────────────────────────
   devices: {
     register: '/devices/register',

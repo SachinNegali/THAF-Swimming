@@ -262,7 +262,7 @@ export function useFilterTrips(params: TripFilterParams | null) {
         if (params?.to)        qs.set('to', params.to);
         if (params?.startDate) qs.set('startDate', params.startDate);
         if (params?.endDate)   qs.set('endDate', params.endDate);
-
+        console.log("THE FUXK IS GET....", endpoints.trips.filter, qs.toString())
         const response = await apiClient.get<{ trips: Trip[]; pagination: any }>(
           `${endpoints.trips.filter}?${qs.toString()}`
         );

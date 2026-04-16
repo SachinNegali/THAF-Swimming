@@ -132,4 +132,10 @@ export const queryKeys = {
     list: () => [...queryKeys.notifications.all, 'list'] as const,
     unreadCount: () => [...queryKeys.notifications.all, 'unread-count'] as const,
   },
+
+  // Profile (medical & emergency)
+  profile: {
+    all: ['profile'] as const,
+    me: () => [...queryKeys.profile.all, 'me'] as const,
+  },
 };

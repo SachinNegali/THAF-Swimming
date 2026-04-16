@@ -22,6 +22,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import axios, { AxiosError } from 'axios';
+import { ToastAndroid } from 'react-native';
 
 /**
  * Error envelope from the expense backend:
@@ -33,6 +34,31 @@ export interface ExpenseApiError {
   message: string;
   retryAfter?: number;
   raw?: unknown;
+}
+
+export const EXPENSE_ERROR_MESSAGES: Record<string, string> = {
+  INVALID_SPLIT_AMOUNTS: 'Split amounts don’t add up to the total.',
+  INVALID_CATEGORY: 'Please pick a category.',
+  GROUP_NOT_FOUND: 'This group no longer exists.',
+  MEMBER_NOT_IN_GROUP: 'That person is not a member of this group.',
+  EXPENSE_NOT_FOUND: 'This expense no longer exists.',
+  NOT_EXPENSE_CREATOR: 'Only the creator can modify this expense.',
+  EDIT_WINDOW_EXPIRED: 'The edit window for this expense has expired.',
+  NUDGE_RATE_LIMITED: 'You’ve nudged recently — try again later.',
+};
+
+export function getExpenseErrorMessage(err: unknown): string {
+  const e = err as ExpenseApiError | undefined;
+  if (e?.code && EXPENSE_ERROR_MESSAGES[e.code]) {
+    return EXPENSE_ERROR_MESSAGES[e.code];
+  }
+  return e?.message ?? 'Something went wrong. Please try again.';
+}
+
+export function showExpenseErrorToast(err: unknown): void {
+  // if (Platform.OS !== 'android') return;
+  console.log("showExpenseErrorToast error....", err);
+  ToastAndroid.show(getExpenseErrorMessage(err), ToastAndroid.SHORT);
 }
 
 export function asExpenseError(err: unknown): ExpenseApiError {
@@ -104,6 +130,10 @@ export function useStartCycle(groupId: string) {
         logApiError(err, 'useStartCycle');
         throw asExpenseError(err);
       }
+    },
+    onError: (err) => {
+      console.log("On error....", err)
+      showExpenseErrorToast(err)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses.groupAll(groupId) });
@@ -279,13 +309,15 @@ export function useCreateExpense(groupId: string) {
       return { previous, tempId };
     },
 
-    onError: (_err, _data, context) => {
+    onError: (err, _data, context) => {
       if (context?.previous) {
         qc.setQueryData(
           queryKeys.groups.messages(groupId),
           context.previous,
         );
       }
+      console.log("On error....", err)
+      showExpenseErrorToast(err);
     },
 
     onSuccess: (expense, _vars, context) => {
@@ -358,6 +390,10 @@ export function useUpdateExpense(groupId: string) {
         throw asExpenseError(err);
       }
     },
+    onError: (err) => {
+      console.log("On error....", err)
+      showExpenseErrorToast(err)
+    },
     onSuccess: (_expense, { expenseId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses.detail(expenseId) });
       qc.invalidateQueries({ queryKey: queryKeys.expenses.balances(groupId) });
@@ -380,6 +416,10 @@ export function useDeleteExpense(groupId: string) {
         logApiError(err, 'useDeleteExpense');
         throw asExpenseError(err);
       }
+    },
+    onError: (err) => {
+    console.log("On error....", err)
+      showExpenseErrorToast(err)
     },
     onSuccess: (expenseId) => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses.detail(expenseId) });
@@ -426,6 +466,10 @@ export function useCreateSettlement(groupId: string) {
         throw asExpenseError(err);
       }
     },
+    onError: (err) => {
+    console.log("On error....", err)
+      showExpenseErrorToast(err)
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses.settlements(groupId) });
       qc.invalidateQueries({ queryKey: queryKeys.expenses.balances(groupId) });
@@ -446,6 +490,10 @@ export function useConfirmSettlement(groupId: string) {
         logApiError(err, 'useConfirmSettlement');
         throw asExpenseError(err);
       }
+    },
+    onError: (err) => {
+    console.log("On error....", err)
+      showExpenseErrorToast(err)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses.settlements(groupId) });
@@ -468,6 +516,10 @@ export function useCancelSettlement(groupId: string) {
         throw asExpenseError(err);
       }
     },
+    onError: (err) => {
+    console.log("On error....", err)
+      showExpenseErrorToast(err)
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses.settlements(groupId) });
       qc.invalidateQueries({ queryKey: queryKeys.expenses.balances(groupId) });
@@ -488,8 +540,15 @@ export function useNudge(groupId: string) {
         return res.data;
       } catch (err) {
         logApiError(err, 'useNudge');
+        console.log("useNudge error....", err?.response?.data);
         throw asExpenseError(err);
       }
+    },
+    onError: (err) => {
+      // Rate-limit is communicated via button cooldown state; skip the toast.
+      console.log("On error....", err)
+      if ((err as ExpenseApiError)?.code === 'NUDGE_RATE_LIMITED') return;
+      showExpenseErrorToast(err);
     },
   });
 }
@@ -527,6 +586,10 @@ export function useAddExpenseComment(groupId: string, expenseId: string) {
         logApiError(err, 'useAddExpenseComment');
         throw asExpenseError(err);
       }
+    },
+    onError: (err) => {
+      console.log("On error....", err)
+      showExpenseErrorToast(err)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses.comments(expenseId) });

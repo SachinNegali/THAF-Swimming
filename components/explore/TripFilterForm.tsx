@@ -1,4 +1,3 @@
-import { DATE_OPTIONS } from '@/dummy-data/journeys';
 import { PlacePrediction, usePlacesSearch } from '@/hooks/usePlacesSearch';
 import React, { useCallback } from 'react';
 import {
@@ -266,7 +265,7 @@ export default function TripFilterForm({
           </TouchableOpacity>
         </View>
         <View style={styles.pillsContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsScroll}>
+          {/* <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsScroll}>
             {DATE_OPTIONS.map((opt) => (
               <TouchableOpacity 
                 key={opt.id} 
@@ -276,7 +275,7 @@ export default function TripFilterForm({
                 <Text style={[styles.pillText, opt.isActive && styles.pillTextActive]}>{opt.label}</Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </ScrollView> */}
         </View>
       </View>
 

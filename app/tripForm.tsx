@@ -3,6 +3,7 @@ import TripFilterForm from '@/components/explore/TripFilterForm';
 import { Button } from '@/components/ui';
 import { useCreateTrip, useTrip, useUpdateTrip } from '@/hooks/api/useTrips';
 import type { CreateTripRequest, UpdateTripRequest } from '@/types/api';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -17,6 +18,14 @@ import {
 } from 'react-native';
 
 export default function TripFormScreen() {
+  return (
+    <BottomSheetModalProvider>
+      <TripFormScreenContent />
+    </BottomSheetModalProvider>
+  );
+}
+
+function TripFormScreenContent() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isUpdate = !!id;

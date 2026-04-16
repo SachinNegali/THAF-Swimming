@@ -308,6 +308,13 @@ const App: React.FC = () => {
       >
         <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#fff' }}>+</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={{ position: 'absolute', bottom: 80, right: 20, backgroundColor: '#0f172a', width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' }}
+        onPress={() => router.push('/profile')}
+      >
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#fff' }}>P</Text>
+      </TouchableOpacity>
       <CalendarBottomSheet
         visible={searchCalOpen}
         onClose={() => setSearchCalOpen(false)}
