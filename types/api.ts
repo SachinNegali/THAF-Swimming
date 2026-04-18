@@ -108,11 +108,25 @@ export interface Trip {
   destination: GeoLocation;
   stops?: GeoLocation[];
   participants?: string[];
+  joinRequests?: JoinRequest[];
   startDate: string;
   endDate: string;
   status: 'planned' | 'active' | 'completed' | 'cancelled';
   createdAt: string;
   updatedAt: string;
+}
+
+export interface JoinRequestUser {
+  _id: string;
+  fName: string;
+  lName: string;
+  email: string;
+}
+
+export interface JoinRequest {
+  _id: string;
+  user: JoinRequestUser;
+  requestedAt: string;
 }
 
 export interface CreateTripRequest {
@@ -144,7 +158,7 @@ export interface TripFilters extends PaginationParams {
 }
 
 export interface AddParticipantsRequest {
-  userIds: string[];
+  participantIds: string[];
 }
 
 // ─── Events ─────────────────────────────────────────────

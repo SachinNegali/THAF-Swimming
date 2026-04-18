@@ -5,6 +5,7 @@ import { queryKeys } from '@/lib/react-query/queryClient';
 import type {
   AddParticipantsRequest,
   CreateTripRequest,
+  JoinRequest,
   PaginatedResponse,
   Trip,
   TripFilters,
@@ -211,6 +212,7 @@ export function useAddTripParticipants() {
     onSuccess: (updatedTrip) => {
       qc.setQueryData(queryKeys.trips.detail(updatedTrip.id), updatedTrip);
       qc.invalidateQueries({ queryKey: queryKeys.trips.lists() });
+      qc.invalidateQueries({ queryKey: queryKeys.trips.joinRequests(updatedTrip.id) });
     },
   });
 }
@@ -243,6 +245,7 @@ export function useRemoveTripParticipant() {
     onSuccess: (updatedTrip) => {
       qc.setQueryData(queryKeys.trips.detail(updatedTrip.id), updatedTrip);
       qc.invalidateQueries({ queryKey: queryKeys.trips.lists() });
+      qc.invalidateQueries({ queryKey: queryKeys.trips.joinRequests(updatedTrip.id) });
     },
   });
 }
@@ -276,6 +279,58 @@ export function useFilterTrips(params: TripFilterParams | null) {
   });
 }
 
+
+/**
+ * Send a join request for a trip.
+ * On success: invalidates the trip detail so server-side state (e.g.
+ * pending request markers) is refreshed.
+ */
+export function useRequestToJoinTrip() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (tripId: string) => {
+      try {
+        const response = await apiClient.post<{ message: string }>(
+          endpoints.trips.join(tripId)
+        );
+        return { tripId, ...response.data };
+      } catch (error) {
+        logApiError(error, 'useRequestToJoinTrip');
+        throw new Error(parseApiError(error));
+      }
+    },
+    onSuccess: ({ tripId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.trips.detail(tripId) });
+    },
+  });
+}
+
+/**
+ * Fetch pending join requests for a trip.
+ * Server returns 403 ("Only the creator can view join requests") for
+ * non-creators — callers should gate this query with `enabled` based on
+ * whether the viewer is the trip creator.
+ */
+export function useTripJoinRequests(tripId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.trips.joinRequests(tripId),
+    queryFn: async () => {
+      try {
+        const response = await apiClient.get<{ joinRequests: JoinRequest[] }>(
+          endpoints.trips.joinRequests(tripId)
+        );
+        // console.log("THE FUXK IS GET....", endpoints.trips.joinRequests(tripId))
+        console.log("THE FUXK IS GET.... TRIPS REQUESTSSS...", response.data, response)
+        return response.data.joinRequests ?? [];
+      } catch (error) {
+        logApiError(error, 'useTripJoinRequests');
+        throw new Error(parseApiError(error));
+      }
+    },
+    enabled: enabled && !!tripId,
+  });
+}
 
 // export function useUserTrip(id: string, enabled = true) {
 //   return useQuery({

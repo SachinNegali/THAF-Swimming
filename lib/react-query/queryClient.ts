@@ -61,6 +61,8 @@ export const queryKeys = {
     detail: (id: string) => [...queryKeys.trips.details(), id] as const,
     participants: (tripId: string) =>
       [...queryKeys.trips.detail(tripId), 'participants'] as const,
+    joinRequests: (tripId: string) =>
+      [...queryKeys.trips.detail(tripId), 'join-requests'] as const,
   },
   
   // Events

@@ -31,6 +31,8 @@ export const endpoints = {
     addParticipants: (id: string) => `/trip/${id}/participants`,
     removeParticipant: (id: string, userId: string) =>
       `/trip/${id}/participants/${userId}`,
+    join: (id: string) => `/trip/${id}/join`,
+    joinRequests: (id: string) => `/trip/${id}/requests`,
   },
 
   // ─── Events ────────────────────────────────────────────
