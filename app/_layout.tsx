@@ -4,17 +4,28 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
-import { Stack } from "expo-router";
+import { useNavigationContainerRef, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { initSentry, routingInstrumentation, Sentry } from "@/lib/sentry";
 import { AppProviders } from "@/providers/AppProviders";
 
-export default function RootLayout() {
+initSentry();
+
+function RootLayout() {
   const colorScheme = useColorScheme();
+  const navigationRef = useNavigationContainerRef();
+
+  useEffect(() => {
+    if (navigationRef.current) {
+      routingInstrumentation.registerNavigationContainer(navigationRef);
+    }
+  }, [navigationRef]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -54,3 +65,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);

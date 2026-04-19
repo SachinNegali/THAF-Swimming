@@ -78,7 +78,14 @@
           "defaultChannel": "default"
         }
       ],
-      "expo-maps"
+      "expo-maps",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "thaf",
+          "project": "thaf-mobile"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,10 +1,33 @@
-import { QueryClient } from '@tanstack/react-query';
+import { Sentry } from '@/lib/sentry';
+import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
 
 /**
  * React Query Client Configuration
  * Centralized configuration for all queries and mutations
  */
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      Sentry.withScope((scope) => {
+        scope.setTag('react_query', 'query');
+        scope.setContext('query', { queryKey: JSON.stringify(query.queryKey) });
+        Sentry.captureException(error);
+      });
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      Sentry.withScope((scope) => {
+        scope.setTag('react_query', 'mutation');
+        scope.setContext('mutation', {
+          mutationKey: mutation.options.mutationKey
+            ? JSON.stringify(mutation.options.mutationKey)
+            : undefined,
+        });
+        Sentry.captureException(error);
+      });
+    },
+  }),
   defaultOptions: {
     queries: {
       // Stale time: How long data is considered fresh (5 minutes)

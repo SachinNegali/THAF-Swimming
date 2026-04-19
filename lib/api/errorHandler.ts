@@ -1,3 +1,4 @@
+import { Sentry } from '@/lib/sentry';
 import { AxiosError } from 'axios';
 import { ApiError } from './client';
 
@@ -55,7 +56,7 @@ export function parseApiError(error: unknown): string {
 }
 
 /**
- * Log error for debugging (can be extended to send to error tracking service)
+ * Log error for debugging and report to Sentry
  */
 export function logApiError(error: unknown, context?: string): void {
   if (__DEV__) {
@@ -64,11 +65,21 @@ export function logApiError(error: unknown, context?: string): void {
     console.log("WHY ERROR RESPONSE MESSAGE", error?.response)
     console.error(`[API Error${context ? ` - ${context}` : ''}]:`, error);
   }
-  
-  // TODO: Send to error tracking service (e.g., Sentry)
-  // if (process.env.NODE_ENV === 'production') {
-  //   Sentry.captureException(error);
-  // }
+
+  Sentry.withScope((scope) => {
+    if (context) {
+      scope.setTag('api.context', context);
+    }
+    if (error instanceof AxiosError) {
+      scope.setContext('api_request', {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+    }
+    Sentry.captureException(error);
+  });
 }
 
 /**

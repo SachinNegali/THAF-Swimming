@@ -3,6 +3,7 @@ import {
     GoogleAuthErrorCodes,
     configureGoogleSignIn,
 } from '@/lib/auth/googleAuth';
+import { Sentry } from '@/lib/sentry';
 import React, {
     createContext,
     useCallback,
@@ -70,6 +71,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // ── Auth state from Redux (populated by useAuth hooks) ──
   const { isAuthenticated, user, isLoading: reduxLoading, error: reduxError } =
     useAppSelector((state) => state.auth);
+
+  // ── Sync authenticated user to Sentry ────────────────
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      Sentry.setUser({ id: user._id, email: user.email });
+    } else {
+      Sentry.setUser(null);
+    }
+  }, [isAuthenticated, user]);
 
   // ── Mutations ─────────────────────────────────────────
   const googleLogin = useGoogleLogin();

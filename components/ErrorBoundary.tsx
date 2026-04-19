@@ -1,5 +1,6 @@
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Sentry } from "@/lib/sentry";
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -30,6 +31,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Error caught by boundary:", error, errorInfo);
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: errorInfo.componentStack } },
+    });
   }
 
   handleReset = () => {
