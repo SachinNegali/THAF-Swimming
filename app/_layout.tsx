@@ -4,7 +4,7 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
-import { useNavigationContainerRef, Stack } from "expo-router";
+import { Stack, useNavigationContainerRef } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -44,7 +44,7 @@ function RootLayout() {
                   options={{ presentation: "modal", title: "Modal" }}
                 />
                 <Stack.Screen name="groupInfo" options={{ headerShown: false }} />
-                <Stack.Screen name="tripDetails" options={{ headerShown: false, presentation: 'modal' }}/>
+                <Stack.Screen name="tripDetails" options={{ headerShown: false}}/>
                 <Stack.Screen
                   name="tripForm"
                   options={{
@@ -54,6 +54,10 @@ function RootLayout() {
                 />
                 <Stack.Screen
                   name="medicalEmergency"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="join-ride/[id]"
                   options={{ headerShown: false }}
                 />
               </Stack>

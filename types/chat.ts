@@ -106,3 +106,14 @@ export interface ChatSection {
 export type ListItem =
   | { type: 'header'; title: string; id: string }
   | (ChatItem & { type: ChatMessageType });
+
+
+
+
+
+
+
+// Image uploads stay in Waiting/Loading state on senders side, until the app is refreshed or messages API is called again. 
+// Does SSE event doesn't recieve a media upload status?                                                                                    
+// And on the reciever end doesn't get an event.                                                                                            
+// @src/controllers/group.controller.js @src/routes/v1/group.route.js @src/controllers/media.controller.js @src/routes/v1/media.route.js

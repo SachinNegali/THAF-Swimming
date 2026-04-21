@@ -1,11 +1,14 @@
 import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 // import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
+    Alert,
     Dimensions,
+    Platform,
     StyleSheet,
     Text,
+    ToastAndroid,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -55,6 +58,14 @@ export default function RidersBottomSheet({
 //   const handleSheetChange = useCallback((index: number) => {
 //     setIsOpen(index > 0); // 0 = nudge (closed), 1+ = open
 //   }, []);
+
+  const copyRideId = useCallback(() => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(`Trip code: ${rideId}`, ToastAndroid.LONG);
+    } else {
+      Alert.alert('Trip Code', rideId, [{ text: 'OK' }]);
+    }
+  }, [rideId]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -187,10 +198,16 @@ export default function RidersBottomSheet({
             />
           </View>
           <Text style={styles.qrTitle}>Scan to Join This Ride</Text>
-          <View style={styles.rideIdBadge}>
-            <Text style={styles.rideIdLabel}>RIDE ID</Text>
-            <Text style={styles.rideIdValue}>{rideId}</Text>
-          </View>
+          <Text style={styles.qrHint}>
+            Others can scan this QR with any scanner app, or enter the code below on the map screen
+          </Text>
+          <TouchableOpacity style={styles.rideIdBadge} activeOpacity={0.7} onPress={copyRideId}>
+            <Text style={styles.rideIdLabel}>TRIP CODE</Text>
+            <View style={styles.rideIdRow}>
+              <Text style={styles.rideIdValue}>{rideId}</Text>
+              <Ionicons name="copy-outline" size={16} color="#9E9E9E" />
+            </View>
+          </TouchableOpacity>
         </View>
       )}
     </BottomSheet>
@@ -338,7 +355,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#212121',
-    marginBottom: 20,
+    marginBottom: 8,
+  },
+  qrHint: {
+    fontSize: 12,
+    color: '#9E9E9E',
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    lineHeight: 18,
   },
   qrCard: {
     padding: 20,
@@ -364,11 +389,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.5,
   },
+  rideIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
   rideIdValue: {
     fontSize: 18,
     fontWeight: '800',
     color: '#212121',
     letterSpacing: 2,
-    marginTop: 2,
   },
 });
