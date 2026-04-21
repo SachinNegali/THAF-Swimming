@@ -184,7 +184,7 @@ export default function BuddyMapExpo() {
 
   // ─── Tracking ────────────────────────────────────────
   const {
-    isConnected, isPolling, peerLocations, myLocation, groupSize,
+    isConnected, isPolling, peerLocations, peerIdMap, myLocation, groupSize,
     error: trackingError,
   } = useTracking({
     wsUrl: TRACKING_WS_URL,
@@ -200,19 +200,18 @@ export default function BuddyMapExpo() {
   // ─── Buddy profile cache ───────────────────────────
   const buddyProfileCache = useRef<Map<number, Buddy>>(new Map());
 
-  const fetchBuddyProfile = useCallback(async (peerId: string): Promise<Buddy | null> => {
-    console.log("THIS IS PEERID...",peerId)
+  const fetchBuddyProfile = useCallback(async (objectId: string): Promise<Buddy | null> => {
     try {
-      const res = await fetch(`${BUDDY_API_BASE}/buddy/${peerId}`, {
+      const res = await fetch(`${BUDDY_API_BASE}/buddy/${objectId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!res.ok) return null;
       const data = await res.json();
       return {
-        id: data._id ?? peerId,
-        numericId: objectIdToNumericId(data._id ?? peerId),
+        id: data._id ?? objectId,
+        numericId: objectIdToNumericId(data._id ?? objectId),
         name: data.name ?? 'Rider',
-        avatar: data.imageUrl ?? `https://i.pravatar.cc/150?u=${peerId}`,
+        avatar: data.imageUrl ?? `https://i.pravatar.cc/150?u=${objectId}`,
         latitude: 0, longitude: 0,
         status: 'driving', battery: 100, lastSeen: 'just now',
       };
@@ -230,7 +229,9 @@ export default function BuddyMapExpo() {
         if (numId === numericUserId) continue;
         let profile = buddyProfileCache.current.get(numId);
         if (!profile) {
-          const fetched = await fetchBuddyProfile(String(numId));
+          const objectId = peerIdMap.get(numId);
+          if (!objectId) continue;
+          const fetched = await fetchBuddyProfile(objectId);
           if (fetched) { buddyProfileCache.current.set(numId, fetched); profile = fetched; }
         }
         const timeDiff = Date.now() - peer.receivedAt;
@@ -253,7 +254,7 @@ export default function BuddyMapExpo() {
     };
     buildBuddies();
     return () => { cancelled = true; };
-  }, [peerLocations, numericUserId, fetchBuddyProfile]);
+  }, [peerLocations, peerIdMap, numericUserId, fetchBuddyProfile]);
 
   // ─── UI state ──────────────────────────────────────
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

@@ -49,6 +49,8 @@ export interface UseTrackingReturn {
   isConnected: boolean;
   isPolling: boolean;
   peerLocations: Map<number, PeerLocation>;
+  /** Maps numericId → MongoDB ObjectId for all peers in the group */
+  peerIdMap: Map<number, string>;
   myLocation: Location.LocationObject | null;
   groupSize: number;
   error: string | null;
@@ -84,6 +86,7 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
   // ─── State ───────────────────────────────────────────
   const [isConnected, setIsConnected] = useState(false);
   const [peerLocations, setPeerLocations] = useState<Map<number, PeerLocation>>(new Map());
+  const [peerIdMap, setPeerIdMap] = useState<Map<number, string>>(new Map());
   const [myLocation, setMyLocation] = useState<Location.LocationObject | null>(null);
   const [groupSize, setGroupSize] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -279,9 +282,34 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
       } else if (typeof event.data === 'string') {
         try {
           const msg = JSON.parse(event.data);
-          console.log('[Tracking] WS text message:', msg);
+          console.log('[Tracking] WS text message:', msg.type);
+
           if (msg.type === 'welcome') {
             setGroupSize(msg.groupSize);
+            if (msg.roster) {
+              setPeerIdMap(new Map(
+                Object.entries(msg.roster).map(([nid, oid]) => [Number(nid), oid as string]),
+              ));
+            }
+          } else if (msg.type === 'peer_joined') {
+            setGroupSize(msg.groupSize);
+            setPeerIdMap((prev) => {
+              const next = new Map(prev);
+              next.set(msg.numericId, msg.userId);
+              return next;
+            });
+          } else if (msg.type === 'peer_left') {
+            setGroupSize(msg.groupSize);
+            setPeerIdMap((prev) => {
+              const next = new Map(prev);
+              next.delete(msg.numericId);
+              return next;
+            });
+            setPeerLocations((prev) => {
+              const next = new Map(prev);
+              next.delete(msg.numericId);
+              return next;
+            });
           }
         } catch {
           /* ignore parse errors */
@@ -376,5 +404,5 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
     };
   }, [enabled, connect, disconnect]);
 
-  return { isConnected, isPolling, peerLocations, myLocation, groupSize, error, connect, disconnect };
+  return { isConnected, isPolling, peerLocations, peerIdMap, myLocation, groupSize, error, connect, disconnect };
 }
