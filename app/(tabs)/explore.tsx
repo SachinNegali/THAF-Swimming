@@ -16,7 +16,6 @@ import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE } from 'react-nativ
 
 import { useLocalSearchParams } from 'expo-router';
 import {
-  BUDDY_API_BASE,
   BuddyMarkerView,
   ConnectionBadge,
   GOOGLE_MAPS_API_KEY,
@@ -35,7 +34,7 @@ import {
   TRAFFIC_COLORS,
   type TrafficSegment,
 } from '../../components/explore';
-import { MapFAB, QuickActionsSheet, RidersBottomSheet } from '../../components/ride';
+import { IncomingActionPopup, MapFAB, QuickActionsSheet, RidersBottomSheet } from '../../components/ride';
 import { Buddy } from '../../components/ride/types';
 import { useTrip, useTrips, useUpdateTrip } from '../../hooks/api/useTrips';
 import { IncomingQuickAction, useTracking } from '../../hooks/useTracking';
@@ -183,11 +182,9 @@ export default function BuddyMapExpo() {
   }, []);
 
   // ─── Quick action popup ──────────────────────────────
+  const [incomingAction, setIncomingAction] = useState<IncomingQuickAction | null>(null);
   const handleIncomingQuickAction = useCallback((action: IncomingQuickAction) => {
-    const title = action.priority === 'emergency'
-      ? `EMERGENCY: ${action.label}`
-      : action.label;
-    Alert.alert(title, `${action.senderName} sent "${action.label}" to the group.`);
+    setIncomingAction(action);
   }, []);
 
   // ─── Tracking ────────────────────────────────────────
@@ -211,21 +208,27 @@ export default function BuddyMapExpo() {
 
   const fetchBuddyProfile = useCallback(async (objectId: string): Promise<Buddy | null> => {
     try {
-      const res = await fetch(`${BUDDY_API_BASE}/buddy/${objectId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
+      const { data } = await apiClient.get<any>(endpoints.users.byId(objectId));
+      const user = data?.user ?? data;
+      if (!user) return null;
+
+      const id = user._id ?? user.id ?? objectId;
+      const joinedName = [user.fName, user.lName].filter(Boolean).join(' ').trim();
+      const fullName = user.name ?? (joinedName || 'Rider');
+
       return {
-        id: data._id ?? objectId,
-        numericId: objectIdToNumericId(data._id ?? objectId),
-        name: data.name ?? 'Rider',
-        avatar: data.imageUrl ?? `https://i.pravatar.cc/150?u=${objectId}`,
+        id,
+        numericId: objectIdToNumericId(id),
+        name: fullName,
+        avatar: user.avatar ?? user.imageUrl ?? user.profilePicture ?? `https://i.pravatar.cc/150?u=${id}`,
         latitude: 0, longitude: 0,
         status: 'driving', battery: 100, lastSeen: 'just now',
       };
-    } catch { return null; }
-  }, [accessToken]);
+    } catch (e) {
+      console.warn('[Explore] fetchBuddyProfile failed for', objectId, e);
+      return null;
+    }
+  }, []);
 
   // ─── Build buddies from live peers ─────────────────
   const [buddies, setBuddies] = useState<Buddy[]>([]);
@@ -541,6 +544,22 @@ export default function BuddyMapExpo() {
     );
   }, [location, routeMode]);
 
+  const navigateToSender = useCallback((senderObjectId: string) => {
+    const nid = objectIdToNumericId(senderObjectId);
+    const peer = peerLocations.get(nid);
+    if (!peer) {
+      Alert.alert('Sender offline', 'We don\'t have a live location for that rider yet.');
+      return;
+    }
+    const buddy = buddies.find((b) => b.numericId === nid);
+    if (buddy) navigateToBuddy(buddy);
+    else if (location) {
+      const dest = { latitude: peer.lat, longitude: peer.lng };
+      setDestination(dest); setDestinationName('Emergency sender');
+      fetchRoute(dest);
+    }
+  }, [peerLocations, buddies, navigateToBuddy, location]);
+
   const changeRouteMode = (mode: RouteMode) => {
     setRouteMode(mode);
     if (destination) fetchRoute(destination);
@@ -697,8 +716,7 @@ export default function BuddyMapExpo() {
               isConnected={isConnected}
               isPolling={isPolling}
               hasError={!!trackingError}
-              // groupSize={groupSize}
-              groupSize={buddies?.length}
+              groupSize={groupSize}
             />
           </View>
           <RideStrip rideMode={rideMode} onEndRide={endRide} />
@@ -762,7 +780,10 @@ export default function BuddyMapExpo() {
         isOpen={isQuickActionsOpen}
         setIsOpen={() => setIsQuickActionsOpen(false)}
         onSendAction={(action) => {
-          sendQuickAction(action.id, action.label, action.priority, user?.name ?? 'A rider');
+          const u = user as any;
+          const joined = [u?.fName, u?.lName].filter(Boolean).join(' ').trim();
+          const name = u?.name ?? (joined || 'A rider');
+          sendQuickAction(action.id, action.label, action.priority, name);
         }}
       />
         {console.log("WHO ARE THESEE BUDDIES....", buddies)}
@@ -775,6 +796,12 @@ export default function BuddyMapExpo() {
         rideId={trackingGroupId ?? '—'}
         isOpen={isRidersOpen}
         setIsOpen={() => setIsRidersOpen(false)}
+      />
+
+      <IncomingActionPopup
+        action={incomingAction}
+        onDismiss={() => setIncomingAction(null)}
+        onNavigateToSender={navigateToSender}
       />
     </View>
   );

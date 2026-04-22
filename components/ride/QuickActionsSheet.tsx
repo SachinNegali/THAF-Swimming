@@ -15,7 +15,7 @@ import { PRIORITY_COLORS, QuickAction, QuickActionPriority } from './types';
 
 const QUICK_ACTIONS: QuickAction[] = [
   { id: 'rider-down', label: 'Rider Down', icon: 'alert-circle', priority: 'emergency', description: 'Emergency: rider down alert' },
-  { id: 'regroup', label: 'Re-Group', icon: 'account-group', priority: 'regular', description: 'Signal all riders to regroup' },
+  { id: 'regroup', label: 'Re-Group', icon: 'account-group', priority: 'medium', description: 'Signal all riders to regroup' },
   { id: 'all-clear', label: 'All Clear', icon: 'check-circle-outline', priority: 'regular', description: 'Signal all clear to riders' },
   { id: 'fuel', label: 'Fuel Stop', icon: 'gas-station', priority: 'medium', description: 'Notify riders of fuel stop' },
   { id: 'breakfast', label: 'Breakfast', icon: 'food', priority: 'medium', description: 'Signal a food/breakfast stop' },
