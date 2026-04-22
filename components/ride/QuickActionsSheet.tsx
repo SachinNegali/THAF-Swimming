@@ -25,9 +25,10 @@ const QUICK_ACTIONS: QuickAction[] = [
 export interface QuickActionsSheetProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
+  onSendAction?: (action: QuickAction) => void;
 }
 
-const QuickActionsSheet : React.FC<QuickActionsSheetProps> = ({ isOpen, setIsOpen }) => {
+const QuickActionsSheet : React.FC<QuickActionsSheetProps> = ({ isOpen, setIsOpen, onSendAction }) => {
 //   const sheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['50%', '75%', '100%'], []);
 
@@ -37,27 +38,24 @@ const QuickActionsSheet : React.FC<QuickActionsSheetProps> = ({ isOpen, setIsOpe
 //   }));
 
   const handleAction = useCallback((action: QuickAction) => {
+    const send = () => {
+      onSendAction?.(action);
+      setIsOpen(false);
+    };
+
     if (action.id === 'rider-down') {
       Alert.alert(
-        '⚠️ Rider Down',
+        'Rider Down',
         'Are you sure you want to send a Rider Down alert? This will notify all riders immediately.',
         [
           { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Send Alert',
-            style: 'destructive',
-            onPress: () => {
-              setIsOpen(false);
-              Alert.alert('Alert Sent', 'Emergency alert sent to all riders!');
-            },
-          },
+          { text: 'Send Alert', style: 'destructive', onPress: send },
         ]
       );
     } else {
-      setIsOpen(false);
-      Alert.alert(action.label, `${action.description} — sent to all riders!`);
+      send();
     }
-  }, []);
+  }, [onSendAction, setIsOpen]);
 
   const renderPriorityDot = (priority: QuickActionPriority) => (
     <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS[priority] }]} />

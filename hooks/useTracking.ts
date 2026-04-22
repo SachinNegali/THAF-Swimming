@@ -36,6 +36,15 @@ export interface PeerLocation extends LocationUpdate {
   receivedAt: number;
 }
 
+export interface IncomingQuickAction {
+  actionId: string;
+  label: string;
+  priority: string;
+  senderUserId: string;
+  senderName: string;
+  timestamp: number;
+}
+
 export interface UseTrackingOptions {
   wsUrl: string;
   accessToken: string;
@@ -43,6 +52,7 @@ export interface UseTrackingOptions {
   numericUserId: number;
   updateIntervalMs?: number;
   enabled?: boolean;
+  onQuickAction?: (action: IncomingQuickAction) => void;
 }
 
 export interface UseTrackingReturn {
@@ -56,6 +66,7 @@ export interface UseTrackingReturn {
   error: string | null;
   connect: () => void;
   disconnect: () => void;
+  sendQuickAction: (actionId: string, label: string, priority: string, senderName: string) => void;
 }
 
 // ─── Hook ────────────────────────────────────────────────
@@ -82,6 +93,9 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
   // Store latest option values so callbacks never go stale
   const optionsRef = useRef(options);
   optionsRef.current = options;
+
+  const onQuickActionRef = useRef(options.onQuickAction);
+  onQuickActionRef.current = options.onQuickAction;
 
   // ─── State ───────────────────────────────────────────
   const [isConnected, setIsConnected] = useState(false);
@@ -310,6 +324,8 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
               next.delete(msg.numericId);
               return next;
             });
+          } else if (msg.type === 'quick_action') {
+            onQuickActionRef.current?.(msg as IncomingQuickAction);
           }
         } catch {
           /* ignore parse errors */
@@ -404,5 +420,17 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
     };
   }, [enabled, connect, disconnect]);
 
-  return { isConnected, isPolling, peerLocations, peerIdMap, myLocation, groupSize, error, connect, disconnect };
+  // ═══════════════════════════════════════════════════════
+  // 6. Send quick action over WS
+  // ═══════════════════════════════════════════════════════
+  const sendQuickAction = useCallback(
+    (actionId: string, label: string, priority: string, senderName: string) => {
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'quick_action', actionId, label, priority, senderName }));
+    },
+    [],
+  );
+
+  return { isConnected, isPolling, peerLocations, peerIdMap, myLocation, groupSize, error, connect, disconnect, sendQuickAction };
 }

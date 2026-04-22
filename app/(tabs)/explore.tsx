@@ -38,7 +38,7 @@ import {
 import { MapFAB, QuickActionsSheet, RidersBottomSheet } from '../../components/ride';
 import { Buddy } from '../../components/ride/types';
 import { useTrip, useTrips, useUpdateTrip } from '../../hooks/api/useTrips';
-import { useTracking } from '../../hooks/useTracking';
+import { IncomingQuickAction, useTracking } from '../../hooks/useTracking';
 import { apiClient } from '../../lib/api/client';
 import { endpoints } from '../../lib/api/endpoints';
 import { objectIdToNumericId } from '../../services/tracking/binaryProtocol';
@@ -182,10 +182,18 @@ export default function BuddyMapExpo() {
     setRideMode({ type: 'none' });
   }, []);
 
+  // ─── Quick action popup ──────────────────────────────
+  const handleIncomingQuickAction = useCallback((action: IncomingQuickAction) => {
+    const title = action.priority === 'emergency'
+      ? `EMERGENCY: ${action.label}`
+      : action.label;
+    Alert.alert(title, `${action.senderName} sent "${action.label}" to the group.`);
+  }, []);
+
   // ─── Tracking ────────────────────────────────────────
   const {
     isConnected, isPolling, peerLocations, peerIdMap, myLocation, groupSize,
-    error: trackingError,
+    error: trackingError, sendQuickAction,
   } = useTracking({
     wsUrl: TRACKING_WS_URL,
     accessToken: accessToken ?? '',
@@ -193,6 +201,7 @@ export default function BuddyMapExpo() {
     numericUserId,
     updateIntervalMs: 2000,
     enabled: !!accessToken && !!user && !!trackingGroupId,
+    onQuickAction: handleIncomingQuickAction,
   });
 
   const location = useMemo(() => myLocation?.coords ?? null, [myLocation]);
@@ -749,7 +758,13 @@ export default function BuddyMapExpo() {
         <MapFAB onPress={() => setIsRidersOpen(true)} onPressActions={() => setIsQuickActionsOpen(true)} />
       {/* )} */}
 
-      <QuickActionsSheet isOpen={isQuickActionsOpen} setIsOpen={() => setIsQuickActionsOpen(false)} />
+      <QuickActionsSheet
+        isOpen={isQuickActionsOpen}
+        setIsOpen={() => setIsQuickActionsOpen(false)}
+        onSendAction={(action) => {
+          sendQuickAction(action.id, action.label, action.priority, user?.name ?? 'A rider');
+        }}
+      />
         {console.log("WHO ARE THESEE BUDDIES....", buddies)}
       <RidersBottomSheet
         buddies={buddies}
