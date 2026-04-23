@@ -170,16 +170,25 @@ export const IncomingActionPopup: React.FC<IncomingActionPopupProps> = ({
         style={[styles.importantContainer, { transform: [{ translateY }], opacity }]}
         pointerEvents="auto"
       >
-        <View style={styles.importantRow}>
+        {/* <View style={styles.importantRow}> */}
           <MaterialCommunityIcons name="account-group" size={36} color="#fff" />
           <View style={styles.importantTextBlock}>
             <Text style={styles.importantLabel}>{action.label}</Text>
             <Text style={styles.importantSender}>from {action.senderName}</Text>
           </View>
-          <TouchableOpacity style={styles.importantClose} onPress={handleDismiss} hitSlop={10}>
+          {/* <TouchableOpacity style={styles.importantClose} onPress={handleDismiss} hitSlop={10}>
             <MaterialIcons name="close" size={26} color="#fff" />
+          </TouchableOpacity> */}
+        {/* </View> */}
+        {onNavigateToSender && (
+            <TouchableOpacity style={[styles.navigateBtn, {width: "100%"}]} onPress={handleNavigate} activeOpacity={0.85}>
+              <MaterialIcons name="navigation" size={22} color="#FB8C00" />
+              <Text style={[styles.navigateBtnText, {color: "#FB8C00"}]}>Navigate to {action.senderName}</Text>
+            </TouchableOpacity>
+          )}
+        <TouchableOpacity style={[styles.dismissBtn, {width: "100%"}]} onPress={handleDismiss} activeOpacity={0.85}>
+            <Text style={styles.dismissBtnText}>Acknowledge</Text>
           </TouchableOpacity>
-        </View>
       </Animated.View>
     );
   }
@@ -210,6 +219,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#D32F2F',
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 24,
+    // borderTopLeftRadius: 26,
+    // borderTopRightRadius: 26,
     zIndex: 1000,
     elevation: 20,
     alignItems: 'center',
@@ -242,17 +253,38 @@ const styles = StyleSheet.create({
 
   // Important
   importantContainer: {
+    // position: 'absolute',
+    // bottom: 0,
+    // left: 0,
+    // right: 0,
+    // height: SCREEN_H * 0.25,
+    // backgroundColor: '#FB8C00',
+    // paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    // paddingHorizontal: 20,
+    // // borderTopLeftRadius: 26,
+    // // borderTopRightRadius: 26,
+    // zIndex: 1000,
+    // elevation: 20,
+    // // justifyContent: 'center',
+    // alignItems: 'center',
+    // rowGap: 20,
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    height: SCREEN_H * 0.25,
+    // height: SCREEN_H * 0.25,
     backgroundColor: '#FB8C00',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingHorizontal: 20,
+    // paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: 24,
+    paddingHorizontal: 24,
+    // borderTopLeftRadius: 26,
+    // borderTopRightRadius: 26,
     zIndex: 1000,
     elevation: 20,
-    justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 32,
+    gap: 16
   },
   importantRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   importantTextBlock: { flex: 1 },
@@ -263,15 +295,20 @@ const styles = StyleSheet.create({
   // Regular
   regularContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 80 : 50,
+    // top: Platform.OS === 'ios' ? 80 : 50,
+    bottom: 10,
     alignSelf: 'center',
-    backgroundColor: 'rgba(33, 33, 33, 0.95)',
-    borderRadius: 24,
+    // backgroundColor: 'rgba(49, 22, 255, 0.95)',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: "#3116fff2",
+    borderRadius: 6,
     paddingHorizontal: 16,
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    width: "90%",
     zIndex: 1000,
     elevation: 20,
     shadowColor: '#000',
@@ -280,7 +317,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     maxWidth: '90%',
   },
-  regularText: { color: '#fff', fontSize: 14, fontWeight: '500' },
+  regularText: { color: '#000', fontSize: 14, fontWeight: '500' },
   regularSender: { fontWeight: '800' },
 });
 
