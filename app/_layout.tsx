@@ -45,6 +45,7 @@ function RootLayout() {
                 />
                 <Stack.Screen name="groupInfo" options={{ headerShown: false }} />
                 <Stack.Screen name="tripDetails" options={{ headerShown: false}}/>
+                <Stack.Screen name="searchTrips" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="tripForm"
                   options={{
