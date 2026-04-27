@@ -1,6 +1,8 @@
 import { apiClient } from '@/lib/api/client';
 import { API_BASE_URL, endpoints } from '@/lib/api/endpoints';
 import { logApiError } from '@/lib/api/errorHandler';
+import { refreshAccessToken } from '@/lib/api/refreshToken';
+import { TokenManager } from '@/lib/api/tokenManager';
 import { showLocalMessageNotification } from '@/lib/notifications';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { store } from '@/store';
@@ -70,6 +72,8 @@ export function useSSE(enabled = true) {
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPollingRef = useRef(false);
+  // Guards token refresh to one attempt per connection cycle — reset on 'open'
+  const hasTriedRefreshRef = useRef(false);
 
   // ─── Event handler ─────────────────────────────────────
 
@@ -470,6 +474,7 @@ export function useSSE(enabled = true) {
       console.log('[SSE] Connected successfully');
       setStatus('connected');
       retryCountRef.current = 0;
+      hasTriedRefreshRef.current = false;
       stopPollingRef.current();
     });
 
@@ -545,8 +550,35 @@ export function useSSE(enabled = true) {
       es.close();
       esRef.current = null;
       setStatus('disconnected');
-      retryCountRef.current++;
 
+      // EventSource doesn't surface HTTP status codes, so an expired token
+      // and a network blip look identical. Attempt a refresh once per
+      // connect cycle before counting this against retry budget — otherwise
+      // we'd burn all 5 retries with the same dead token and fall to polling.
+      if (!hasTriedRefreshRef.current && TokenManager.getRefreshToken()) {
+        hasTriedRefreshRef.current = true;
+        console.log('[SSE] Error — attempting token refresh before reconnect');
+        refreshAccessToken()
+          .then(() => {
+            console.log('[SSE] Token refreshed, reconnecting SSE');
+            retryCountRef.current = 0;
+            connectSSERef.current();
+          })
+          .catch((err: any) => {
+            console.warn('[SSE] Token refresh failed:', err?.message ?? err);
+            // 401/403: helper already logged out; stop here.
+            if (err?.status === 401 || err?.status === 403) return;
+            retryCountRef.current++;
+            if (retryCountRef.current > MAX_SSE_RETRIES) {
+              startPollingRef.current();
+            } else {
+              scheduleReconnect();
+            }
+          });
+        return;
+      }
+
+      retryCountRef.current++;
       if (retryCountRef.current > MAX_SSE_RETRIES) {
         console.log('[SSE] Max retries exceeded, switching to long-poll');
         startPollingRef.current();

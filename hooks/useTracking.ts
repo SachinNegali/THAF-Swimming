@@ -16,6 +16,8 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 
+import { refreshAccessToken } from '../lib/api/refreshToken';
+import { TokenManager } from '../lib/api/tokenManager';
 import {
   decodeLocationUpdate,
   encodeLocationUpdate,
@@ -89,6 +91,9 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
 
   // Prevents reconnect after intentional disconnect (effect cleanup / user call)
   const disposedRef = useRef(false);
+
+  // Guards token refresh to one attempt per connection cycle — reset on onopen
+  const hasTriedRefreshRef = useRef(false);
 
   // Store latest option values so callbacks never go stale
   const optionsRef = useRef(options);
@@ -260,7 +265,10 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
     // Don't reconnect after intentional dispose
     if (disposedRef.current) return;
 
-    const { wsUrl: url, accessToken: token, groupId: gid } = optionsRef.current;
+    const { wsUrl: url, groupId: gid } = optionsRef.current;
+    // Prefer TokenManager — it's updated synchronously by refreshAccessToken,
+    // whereas optionsRef.current.accessToken lags one React render behind.
+    const token = TokenManager.getAccessToken() ?? optionsRef.current.accessToken;
 
     // Safety: don't connect with empty token
     if (!token) {
@@ -280,6 +288,7 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
       setIsConnected(true);
       setError(null);
       reconnectAttempts.current = 0;
+      hasTriedRefreshRef.current = false;
       startSendLoop(ws);
 
       // WS is back — stop polling fallback if it was active
@@ -349,12 +358,16 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
       setIsConnected(false);
       stopSendLoop();
 
-      if (!disposedRef.current && optionsRef.current.enabled) {
+      if (disposedRef.current || !optionsRef.current.enabled) return;
+
+      const scheduleRetryOrPoll = () => {
+        if (disposedRef.current || !optionsRef.current.enabled) return;
         if (reconnectAttempts.current >= MAX_WS_RECONNECT_BEFORE_POLL) {
           // Max retries exhausted — activate long-poll fallback
           if (!isPollingRef.current) {
             console.log('[Tracking] WebSocket failed after max retries, falling back to long-polling');
-            const { accessToken: tok, groupId: gid } = optionsRef.current;
+            const { groupId: gid } = optionsRef.current;
+            const tok = TokenManager.getAccessToken() ?? optionsRef.current.accessToken;
             startPollingRef.current(gid, tok);
           }
         } else {
@@ -365,7 +378,32 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
             connect();
           }, delay);
         }
+      };
+
+      // The WS URL carries the access token, so an expired token looks like a
+      // plain close. Attempt a refresh once per connect cycle before giving up
+      // on WS — otherwise we'd backoff-then-poll with the same dead token.
+      if (!hasTriedRefreshRef.current && TokenManager.getRefreshToken()) {
+        hasTriedRefreshRef.current = true;
+        console.log('[Tracking] WS closed — attempting token refresh before reconnect');
+        refreshAccessToken()
+          .then(() => {
+            if (disposedRef.current || !optionsRef.current.enabled) return;
+            console.log('[Tracking] Token refreshed, reconnecting WS');
+            reconnectAttempts.current = 0;
+            connect();
+          })
+          .catch((err: any) => {
+            console.warn('[Tracking] Token refresh failed:', err?.message ?? err);
+            // 401/403 already cleared tokens + dispatched logout inside the
+            // helper; leave WS down and let the auth flow take over.
+            if (err?.status === 401 || err?.status === 403) return;
+            scheduleRetryOrPoll();
+          });
+        return;
       }
+
+      scheduleRetryOrPoll();
     };
   }, [startSendLoop, stopSendLoop]);
 

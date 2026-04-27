@@ -11,10 +11,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { API_BASE_URL } from '../lib/api/endpoints';
-import { TokenManager } from '../lib/api/tokenManager';
-import { store } from '../store';
-import { logout, updateTokens } from '../store/slices/authSlice';
+import { refreshAccessToken } from '../lib/api/refreshToken';
 import {
   decodeLocationUpdate,
   encodeLocationUpdate,
@@ -86,34 +83,6 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** Replicates the token-refresh logic from lib/api/client.ts for fetch-based calls. */
-async function doTokenRefresh(): Promise<string> {
-  const refreshToken = TokenManager.getRefreshToken();
-  if (!refreshToken) throw new Error('No refresh token available');
-
-  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  });
-
-  if (!response.ok) {
-    throw Object.assign(new Error('Token refresh failed'), { status: response.status });
-  }
-
-  const data = await response.json();
-  const { access, refresh } = data.tokens ?? data;
-  const newAccessToken = access?.token ?? data.accessToken;
-  const newRefreshToken = refresh?.token ?? data.refreshToken ?? refreshToken;
-
-  if (!newAccessToken) throw new Error('No access token in refresh response');
-
-  await TokenManager.setTokens(newAccessToken, newRefreshToken);
-  store.dispatch(updateTokens({ accessToken: newAccessToken, refreshToken: newRefreshToken }));
-
-  return newAccessToken;
-}
-
 // ─── Hook ────────────────────────────────────────────────────────────────────
 export function usePollingFallback({
   pollBaseUrl,
@@ -179,7 +148,7 @@ export function usePollingFallback({
         let response = await doSend(tokenRef.current);
 
         if (response.status === 401) {
-          const newToken = await doTokenRefresh();
+          const newToken = await refreshAccessToken();
           tokenRef.current = newToken;
           response = await doSend(newToken);
         }
@@ -219,17 +188,13 @@ export function usePollingFallback({
         // ── 401 → refresh once, then retry ──────────────────────────────────
         if (response.status === 401) {
           try {
-            const newToken = await doTokenRefresh();
+            const newToken = await refreshAccessToken();
             tokenRef.current = newToken;
             response = await fetch(buildUrl(newToken), { signal });
           } catch (refreshErr) {
+            // refreshAccessToken handles clearTokens + logout on 401/403 itself.
             const e =
               refreshErr instanceof Error ? refreshErr : new Error('Auth failed');
-            const status = (refreshErr as any)?.status;
-            if (status === 401 || status === 403) {
-              await TokenManager.clearTokens();
-              store.dispatch(logout());
-            }
             setError(e);
             activeRef.current = false;
             setIsPolling(false);
