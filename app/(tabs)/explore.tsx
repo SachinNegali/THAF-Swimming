@@ -12,11 +12,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { useLocalSearchParams } from 'expo-router';
 import {
-  BuddyMarkerView,
+  BuddyMapMarker,
   ConnectionBadge,
   GOOGLE_MAPS_API_KEY,
   type LatLng,
@@ -603,26 +603,13 @@ export default function BuddyMapExpo() {
         )}
 
         {buddies.map((buddy) => (
-          <Marker
+          <BuddyMapMarker
             key={buddy.id}
-            coordinate={{ latitude: buddy.latitude, longitude: buddy.longitude }}
+            buddy={buddy}
+            distanceKm={getDistance(location.latitude, location.longitude, buddy.latitude, buddy.longitude)}
             onPress={() => setSelectedBuddy(buddy)}
-            tracksViewChanges={false}
-          >
-            <BuddyMarkerView buddy={buddy} />
-            <Callout tooltip onPress={() => navigateToBuddy(buddy)}>
-              <View style={styles.calloutContainer}>
-                <Text style={styles.calloutName}>{buddy.name}</Text>
-                <Text style={styles.calloutDistance}>
-                  {getDistance(location.latitude, location.longitude, buddy.latitude, buddy.longitude)} km away
-                </Text>
-                {buddy.speed !== undefined && (
-                  <Text style={styles.calloutStatus}>{buddy.speed} km/h</Text>
-                )}
-                <Text style={styles.calloutStatus}>Tap to navigate</Text>
-              </View>
-            </Callout>
-          </Marker>
+            onCalloutPress={() => navigateToBuddy(buddy)}
+          />
         ))}
 
         {destination && (
@@ -752,7 +739,6 @@ export default function BuddyMapExpo() {
           sendQuickAction(action.id, action.label, action.priority, name);
         }}
       />
-        {console.log("WHO ARE THESEE BUDDIES....", buddies)}
       <RidersBottomSheet
         buddies={buddies}
         selectedBuddy={selectedBuddy}
