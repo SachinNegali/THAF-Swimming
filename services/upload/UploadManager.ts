@@ -13,9 +13,9 @@ import { updateUpload } from '@/stores/uploadStore';
 import type { UploadRecord } from '@/types/upload';
 import {
   createUploadTask,
-  getInfoAsync,
-  FileSystemUploadType,
   FileSystemSessionType,
+  FileSystemUploadType,
+  getInfoAsync,
 } from 'expo-file-system/legacy';
 
 import { emitUploadProgress } from './uploadEvents';
@@ -123,7 +123,9 @@ async function runUploadOnce(upload: UploadRecord): Promise<void> {
     mimeType: upload.mimeType,
     sizeBytes: upload.sizeBytes,
   }).catch((e) => {
+    console.log(e?.message,  "init_failed", "ERRORRR INITTTT MEDIIAAAAA......INITT MEDIAAAAA......" )
     throw new UploadFailure(e?.message ?? 'init_failed', true);
+    
   });
 
   if (response.alreadyComplete) {
@@ -153,6 +155,7 @@ async function runUploadOnce(upload: UploadRecord): Promise<void> {
   const result = await completeUpload({ imageId: upload.imageId }).catch((e) => {
     // File IS in S3 — reconciler will pick this up. Still retry within this
     // attempt cycle in case /complete was briefly unreachable.
+    console.log(e?.message,  "complete_call_failed", "ERRORRR COMPLETE MEDIIAAAAA......INIT MEDIAAAAA......" )
     throw new UploadFailure(
       'complete_call_failed: ' + (e?.message ?? ''),
       true,
@@ -200,6 +203,7 @@ async function putToS3(upload: UploadRecord): Promise<void> {
   });
 
   if (!result || result.status < 200 || result.status >= 300) {
+    console.log(result?.status,  "ERRORRR uploaddd.. MEDIIAAAAA......INITT MEDIAAAAA......" )
     throw new UploadFailure(
       `S3 returned ${result?.status ?? 'unknown'}`,
       true,

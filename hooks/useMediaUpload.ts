@@ -58,7 +58,7 @@ export async function pickImages(): Promise<SelectedImage[]> {
   }
 
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
+    mediaTypes: ['images', 'videos', 'livePhotos'],
     allowsMultipleSelection: true,
     quality: 0.8,
     exif: false,

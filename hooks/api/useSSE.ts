@@ -7,7 +7,14 @@ import { showLocalMessageNotification } from '@/lib/notifications';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { store } from '@/store';
 import { updateUpload } from '@/stores/uploadStore';
-import type { Group, Message, PaginatedResponse, SSEEvent, SSEEventType } from '@/types/api';
+import type {
+  Group,
+  Message,
+  MessageImageEntry,
+  PaginatedResponse,
+  SSEEvent,
+  SSEEventType,
+} from '@/types/api';
 import type {
   MediaReadySSEEvent,
   MessageImageUpdatedSSEEvent,
@@ -74,6 +81,9 @@ export function useSSE(enabled = true) {
   const isPollingRef = useRef(false);
   // Guards token refresh to one attempt per connection cycle — reset on 'open'
   const hasTriedRefreshRef = useRef(false);
+  // Image events for a message arrive before its new_message notification.
+  // Buffer them by messageId so new_message can attach images on first insert.
+  const pendingImagesRef = useRef<Map<string, MessageImageEntry[]>>(new Map());
 
   // ─── Event handler ─────────────────────────────────────
 
@@ -115,6 +125,20 @@ export function useSSE(enabled = true) {
               metadata,
               createdBy: (fullMsg?.createdBy as string) ?? (data.createdBy as string),
             };
+
+            // If image_updated/media_ready already arrived for this message, the
+            // notification's "Sent an image" string is a placeholder, not real
+            // content. Promote to an image message and attach buffered images.
+            const buffered = pendingImagesRef.current.get(newMessage._id);
+            if (buffered && buffered.length > 0) {
+              newMessage.type = 'image';
+              newMessage.content = '';
+              newMessage.metadata = {
+                ...(newMessage.metadata ?? {}),
+                images: buffered,
+              };
+              pendingImagesRef.current.delete(newMessage._id);
+            }
             console.log("NEW MESSAGE", newMessage)
 
             type MessagesCache =
@@ -306,7 +330,17 @@ export function useSSE(enabled = true) {
         case 'message_image_updated': {
           const payload = data as unknown as MessageImageUpdatedSSEEvent;
           const gId = payload.groupId;
-          if (!gId) break;
+          if (!gId || !payload.messageId) break;
+
+          // Buffer for the new_message notification that follows.
+          const buffered = pendingImagesRef.current.get(payload.messageId) ?? [];
+          const bIdx = buffered.findIndex((i) => i.imageId === payload.imageId);
+          pendingImagesRef.current.set(
+            payload.messageId,
+            bIdx === -1
+              ? [...buffered, payload.image]
+              : buffered.map((i, n) => (n === bIdx ? payload.image : i)),
+          );
 
           type MessagesCache =
             | { pages: PaginatedResponse<Message>[]; pageParams: unknown[] }
@@ -334,6 +368,7 @@ export function useSSE(enabled = true) {
                           );
                     return {
                       ...m,
+                      type: 'image',
                       metadata: { ...(m.metadata ?? {}), images: nextImages },
                     };
                   }),
@@ -347,7 +382,9 @@ export function useSSE(enabled = true) {
         case 'message_media_ready': {
           const media = data as unknown as MediaReadySSEEvent;
           const gId = media.groupId;
-          if (!gId || !media.images) break;
+          if (!gId || !media.messageId || !media.images) break;
+
+          pendingImagesRef.current.set(media.messageId, media.images);
 
           type MessagesCache =
             | { pages: PaginatedResponse<Message>[]; pageParams: unknown[] }
@@ -365,6 +402,7 @@ export function useSSE(enabled = true) {
                     m._id === media.messageId
                       ? {
                           ...m,
+                          type: 'image',
                           metadata: {
                             ...(m.metadata ?? {}),
                             images: media.images!,
@@ -487,13 +525,19 @@ export function useSSE(enabled = true) {
         // Skip heartbeat events
         if (!parsed.type && parsed.timestamp) return;
 
+        // Some events nest payload under `data` (notifications), others put it
+        // at the top level (image_updated, media_ready). Spread top-level
+        // fields first so payload always lands in event.data, then let nested
+        // `data` win on key collisions.
+        const {
+          type: _pType,
+          timestamp: _pTs,
+          data: nestedData,
+          ...topLevel
+        } = parsed;
         const event: SSEEvent = {
           type: normalizeEventType(parsed.type ?? 'notification'),
-          data: {
-            ...(parsed.data ?? {}),
-            message: parsed.message,
-            createdAt: parsed.createdAt,
-          },
+          data: { ...topLevel, ...(nestedData ?? {}) },
           timestamp: String(parsed.timestamp ?? Date.now()),
         };console.log('[SSE:stream] Event received:', JSON.stringify(event, null, 2));
         handleEventRef.current(event);
@@ -529,13 +573,15 @@ export function useSSE(enabled = true) {
           console.log("PARSEDD...2", parsed)
           if (eventName === 'heartbeat' || eventName === 'connected') return;
 
+          const {
+            type: _pType,
+            timestamp: _pTs,
+            data: nestedData,
+            ...topLevel
+          } = parsed;
           const event: SSEEvent = {
             type: normalizeEventType(parsed.type ?? eventName),
-            data: {
-              ...(parsed.data ?? {}),
-              message: parsed.message,
-              createdAt: parsed.createdAt,
-            },
+            data: { ...topLevel, ...(nestedData ?? {}) },
             timestamp: String(parsed.timestamp ?? Date.now()),
           };console.log(`[SSE:${eventName}] Event received:`, JSON.stringify(event, null, 2));
           handleEventRef.current(event);
