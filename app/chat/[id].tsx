@@ -121,6 +121,10 @@ function mapMessageToListItem(msg: Message, currentUserId: string): ListItem {
     const images: ImageAttachment[] = imageIds.map((imageId) => {
       const server = serverImages.find((i) => i.imageId === imageId);
       const local = getUpload(imageId);
+      const mimeType = server?.mimeType ?? local?.mimeType;
+      const mediaType =
+        server?.mediaType ??
+        (mimeType?.startsWith('video/') ? 'video' : 'image');
       return {
         imageId,
         serverStatus: server?.status ?? 'pending',
@@ -128,6 +132,8 @@ function mapMessageToListItem(msg: Message, currentUserId: string): ListItem {
         optimizedUrl: server?.optimizedUrl ?? null,
         width: server?.width ?? null,
         height: server?.height ?? null,
+        mediaType,
+        mimeType,
         localUri: local?.localUri ?? null,
         localStatus: local?.status,
         localError: local?.error ?? null,

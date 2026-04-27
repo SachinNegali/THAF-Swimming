@@ -61,6 +61,10 @@ export interface ImageAttachment {
   optimizedUrl: string | null;
   width: number | null;
   height: number | null;
+  /** 'image' | 'video'. Defaults to 'image' when absent. */
+  mediaType?: 'image' | 'video';
+  /** e.g. 'image/jpeg', 'video/quicktime'. */
+  mimeType?: string;
   /** Present only for the sender while an upload is in-flight. */
   localUri?: string | null;
   localStatus?: import('@/types/upload').UploadStatus;

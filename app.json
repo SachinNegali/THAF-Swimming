@@ -85,6 +85,15 @@
           "organization": "thaf",
           "project": "thaf-mobile"
         }
+      ],
+      "expo-video",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to save shared images and videos.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save shared images and videos to your library.",
+          "isAccessMediaLocationEnabled": false
+        }
       ]
     ],
     "experiments": {

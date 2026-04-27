@@ -265,6 +265,10 @@ export interface MessageImageEntry {
   optimizedUrl: string | null;
   width: number | null;
   height: number | null;
+  /** 'image' | 'video'. Defaults to 'image' when absent (legacy entries). */
+  mediaType?: 'image' | 'video';
+  /** e.g. 'image/jpeg', 'video/quicktime'. */
+  mimeType?: string;
 }
 
 export interface MessageMetadata {

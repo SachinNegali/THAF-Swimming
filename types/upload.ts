@@ -112,6 +112,8 @@ export interface MessageImageUpdatedSSEEvent {
     optimizedUrl: string | null;
     width: number | null;
     height: number | null;
+    mediaType?: 'image' | 'video';
+    mimeType?: string;
   };
   allComplete?: boolean;
 }

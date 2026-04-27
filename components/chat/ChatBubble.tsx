@@ -2,9 +2,10 @@ import { Colors, SPACING } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import type { ImageMessage, TextMessage } from '@/types/chat';
 import { Image } from 'expo-image';
-import React, { memo } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import ImageUploadThumbnail from './ImageUploadThumbnail';
+import MediaViewer from './MediaViewer';
 
 interface ChatBubbleProps {
   item: TextMessage | ImageMessage;
@@ -17,12 +18,15 @@ const ChatBubble = memo(({ item, isDm }: ChatBubbleProps) => {
   const primaryColor = useThemeColor({}, 'tint');
   const secondaryTextColor = useThemeColor({}, 'textMuted');
 
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const closeViewer = useCallback(() => setViewerIndex(null), []);
+
   const renderImageContent = (msg: ImageMessage, captionColor: string) => {
     if (!msg.images?.length) return null;
     return (
       <View>
         <View style={styles.imageGrid}>
-          {msg.images.map((img) => (
+          {msg.images.map((img, index) => (
             <ImageUploadThumbnail
               key={img.imageId}
               imageId={img.imageId}
@@ -31,10 +35,12 @@ const ChatBubble = memo(({ item, isDm }: ChatBubbleProps) => {
               optimizedUrl={img.optimizedUrl}
               width={img.width}
               height={img.height}
+              mediaType={img.mediaType}
               localUri={img.localUri ?? null}
               localStatus={img.localStatus}
               localError={img.localError ?? null}
               compact={msg.images.length > 1}
+              onPress={() => setViewerIndex(index)}
             />
           ))}
         </View>
@@ -47,47 +53,64 @@ const ChatBubble = memo(({ item, isDm }: ChatBubbleProps) => {
     );
   };
 
-  // ─── My Bubble ──────────���─────────────────────────────
+  const imageMsg = item.type === 'image' ? (item as ImageMessage) : null;
+
+  const viewer =
+    imageMsg && viewerIndex !== null ? (
+      <MediaViewer
+        visible
+        attachments={imageMsg.images}
+        initialIndex={viewerIndex}
+        onClose={closeViewer}
+      />
+    ) : null;
+
   if (item.isMe) {
     return (
-      <View style={styles.myMessageContainer}>
-        <View style={[styles.myBubble, { backgroundColor: primaryColor }]}>
-          {item.type === 'image' ? (
-            renderImageContent(item, item.isMe ? '#fff' : textColor)
-          ) : (
-            <Text style={[styles.bubbleText, { color: '#fff' }]}>
-              {item.content}
+      <>
+        <View style={styles.myMessageContainer}>
+          <View style={[styles.myBubble, { backgroundColor: primaryColor }]}>
+            {item.type === 'image' ? (
+              renderImageContent(item, item.isMe ? '#fff' : textColor)
+            ) : (
+              <Text style={[styles.bubbleText, { color: '#fff' }]}>
+                {item.content}
+              </Text>
+            )}
+          </View>
+          {'status' in item && (
+            <Text style={[styles.statusText, { color: secondaryTextColor }]}>
+              Read {item.timestamp}
             </Text>
           )}
         </View>
-        {'status' in item && (
-          <Text style={[styles.statusText, { color: secondaryTextColor }]}>
-            Read {item.timestamp}
-          </Text>
-        )}
-      </View>
+        {viewer}
+      </>
     );
   }
 
   // ─── Their Bubble ─────────���───────────────────────────
   return (
-    <View style={styles.theirMessageContainer}>
-      {isDm ? <></> : <Image source={{ uri: item.senderAvatar }} style={styles.avatar} />}
-      <View style={styles.theirContent}>
-        <Text style={[styles.senderName, { color: secondaryTextColor }]}>
-          {item.senderName}
-        </Text>
-        <View style={[styles.theirBubble, { backgroundColor: '#fff' }]}>
-          {item.type === 'image' ? (
-            renderImageContent(item, item.isMe ? '#fff' : textColor)
-          ) : (
-            <Text style={[styles.bubbleText, { color: textColor }]}>
-              {item.content}
-            </Text>
-          )}
+    <>
+      <View style={styles.theirMessageContainer}>
+        {isDm ? <></> : <Image source={{ uri: item.senderAvatar }} style={styles.avatar} />}
+        <View style={styles.theirContent}>
+          <Text style={[styles.senderName, { color: secondaryTextColor }]}>
+            {item.senderName}
+          </Text>
+          <View style={[styles.theirBubble, { backgroundColor: '#fff' }]}>
+            {item.type === 'image' ? (
+              renderImageContent(item, item.isMe ? '#fff' : textColor)
+            ) : (
+              <Text style={[styles.bubbleText, { color: textColor }]}>
+                {item.content}
+              </Text>
+            )}
+          </View>
         </View>
       </View>
-    </View>
+      {viewer}
+    </>
   );
 });
 
