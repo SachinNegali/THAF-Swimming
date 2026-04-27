@@ -40,6 +40,7 @@ export interface IncomingActionPopupProps {
   action: IncomingAction | null;
   onDismiss: () => void;
   onNavigateToSender?: (senderUserId: string) => void;
+  displayAtTop?: boolean;
 }
 
 const { height: SCREEN_H } = Dimensions.get('window');
@@ -50,6 +51,7 @@ export const IncomingActionPopup: React.FC<IncomingActionPopupProps> = ({
   action,
   onDismiss,
   onNavigateToSender,
+  displayAtTop = false,
 }) => {
   const translateY = useRef(new Animated.Value(-SCREEN_H)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -138,7 +140,7 @@ export const IncomingActionPopup: React.FC<IncomingActionPopupProps> = ({
   if (priority === 'emergency') {
     return (
       <Animated.View
-        style={[styles.emergencyContainer, { transform: [{ translateY }], opacity }]}
+        style={[styles.emergencyContainer, { transform: [{ translateY }], opacity, ...(displayAtTop ? styles.top : styles.bottom) }]}
         pointerEvents="auto"
       >
         <View style={styles.emergencyHeader}>
@@ -167,7 +169,7 @@ export const IncomingActionPopup: React.FC<IncomingActionPopupProps> = ({
   if (priority === 'medium') {
     return (
       <Animated.View
-        style={[styles.importantContainer, { transform: [{ translateY }], opacity }]}
+        style={[styles.importantContainer, { transform: [{ translateY }], opacity, ...(displayAtTop ? styles.top : styles.bottom) }]}
         pointerEvents="auto"
       >
         {/* <View style={styles.importantRow}> */}
@@ -196,7 +198,7 @@ export const IncomingActionPopup: React.FC<IncomingActionPopupProps> = ({
   // ─── Regular (content-fit, auto-dismiss) ────────────────────
   return (
     <Animated.View
-      style={[styles.regularContainer, { transform: [{ translateY }], opacity }]}
+      style={[styles.regularContainer, { transform: [{ translateY }], opacity, ...(displayAtTop ? styles.top : styles.bottom) }]}
       pointerEvents="auto"
     >
       <MaterialIcons name="info-outline" size={20} color="#fff" />
@@ -212,7 +214,6 @@ const styles = StyleSheet.create({
   // Emergency
   emergencyContainer: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
     height: SCREEN_H * 0.5,
@@ -227,6 +228,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: 32,
   },
+  top: {top: Platform.OS === 'ios' ? 60 : 40},
+  bottom: {bottom: 0},
   emergencyHeader: { alignItems: 'center', gap: 8 },
   emergencyTitle: { color: '#fff', fontSize: 32, fontWeight: '900', letterSpacing: 2 },
   emergencyLabel: { color: '#fff', fontSize: 28, fontWeight: '800', textAlign: 'center' },
@@ -269,7 +272,7 @@ const styles = StyleSheet.create({
     // alignItems: 'center',
     // rowGap: 20,
     position: 'absolute',
-    bottom: 0,
+    // bottom: 0,
     left: 0,
     right: 0,
     // height: SCREEN_H * 0.25,
@@ -296,8 +299,9 @@ const styles = StyleSheet.create({
   regularContainer: {
     position: 'absolute',
     // top: Platform.OS === 'ios' ? 80 : 50,
-    bottom: 10,
+    // bottom: 10,
     alignSelf: 'center',
+    margin: 10,
     // backgroundColor: 'rgba(49, 22, 255, 0.95)',
     backgroundColor: '#fff',
     borderWidth: 2,

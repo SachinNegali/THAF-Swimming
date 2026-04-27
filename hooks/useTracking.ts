@@ -47,6 +47,15 @@ export interface IncomingQuickAction {
   timestamp: number;
 }
 
+export interface PeerProfile {
+  userId: string;
+  numericId: number;
+  fName?: string;
+  lName?: string;
+  name: string;
+  picture?: string;
+}
+
 export interface UseTrackingOptions {
   wsUrl: string;
   accessToken: string;
@@ -61,8 +70,8 @@ export interface UseTrackingReturn {
   isConnected: boolean;
   isPolling: boolean;
   peerLocations: Map<number, PeerLocation>;
-  /** Maps numericId → MongoDB ObjectId for all peers in the group */
-  peerIdMap: Map<number, string>;
+  /** Maps numericId → full peer profile (userId, name, picture, …) from the welcome roster */
+  peerProfileMap: Map<number, PeerProfile>;
   myLocation: Location.LocationObject | null;
   groupSize: number;
   error: string | null;
@@ -105,7 +114,7 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
   // ─── State ───────────────────────────────────────────
   const [isConnected, setIsConnected] = useState(false);
   const [peerLocations, setPeerLocations] = useState<Map<number, PeerLocation>>(new Map());
-  const [peerIdMap, setPeerIdMap] = useState<Map<number, string>>(new Map());
+  const [peerProfileMap, setPeerProfileMap] = useState<Map<number, PeerProfile>>(new Map());
   const [myLocation, setMyLocation] = useState<Location.LocationObject | null>(null);
   const [groupSize, setGroupSize] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -306,24 +315,36 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
         try {
           const msg = JSON.parse(event.data);
           console.log('[Tracking] WS text message:', msg.type);
+          console.log('[Tracking] WS text message: message', msg);
 
           if (msg.type === 'welcome') {
             setGroupSize(msg.groupSize);
             if (msg.roster) {
-              setPeerIdMap(new Map(
-                Object.entries(msg.roster).map(([nid, oid]) => [Number(nid), oid as string]),
+              setPeerProfileMap(new Map(
+                Object.entries(msg.roster).map(
+                  ([nid, profile]) => [Number(nid), profile as PeerProfile],
+                ),
               ));
             }
           } else if (msg.type === 'peer_joined') {
             setGroupSize(msg.groupSize);
-            setPeerIdMap((prev) => {
+            setPeerProfileMap((prev) => {
               const next = new Map(prev);
-              next.set(msg.numericId, msg.userId);
+              const u = msg.user ?? {};
+              const joinedName = [u.fName, u.lName].filter(Boolean).join(' ').trim();
+              next.set(msg.numericId, {
+                userId: u.userId ?? msg.userId,
+                numericId: u.numericId ?? msg.numericId,
+                fName: u.fName,
+                lName: u.lName,
+                name: u.name ?? (joinedName || `Rider ${msg.numericId}`),
+                picture: u.picture,
+              });
               return next;
             });
           } else if (msg.type === 'peer_left') {
             setGroupSize(msg.groupSize);
-            setPeerIdMap((prev) => {
+            setPeerProfileMap((prev) => {
               const next = new Map(prev);
               next.delete(msg.numericId);
               return next;
@@ -470,5 +491,5 @@ export function useTracking(options: UseTrackingOptions): UseTrackingReturn {
     [],
   );
 
-  return { isConnected, isPolling, peerLocations, peerIdMap, myLocation, groupSize, error, connect, disconnect, sendQuickAction };
+  return { isConnected, isPolling, peerLocations, peerProfileMap, myLocation, groupSize, error, connect, disconnect, sendQuickAction };
 }

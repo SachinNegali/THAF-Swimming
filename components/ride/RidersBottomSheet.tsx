@@ -3,14 +3,14 @@ import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    Platform,
-    StyleSheet,
-    Text,
-    ToastAndroid,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  Platform,
+  StyleSheet,
+  Text,
+  ToastAndroid,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
@@ -92,6 +92,7 @@ export default function RidersBottomSheet({
 //     </TouchableOpacity>
 //   ), [isOpen, handleToggle]);
 
+console.log("IN BUDDIESS.....", buddies)
   return (
     // <BottomSheet
     //   ref={sheetRef}

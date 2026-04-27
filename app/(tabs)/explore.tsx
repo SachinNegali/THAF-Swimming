@@ -189,7 +189,7 @@ export default function BuddyMapExpo() {
 
   // ─── Tracking ────────────────────────────────────────
   const {
-    isConnected, isPolling, peerLocations, peerIdMap, myLocation, groupSize,
+    isConnected, isPolling, peerLocations, peerProfileMap, myLocation, groupSize,
     error: trackingError, sendQuickAction,
   } = useTracking({
     wsUrl: TRACKING_WS_URL,
@@ -203,70 +203,36 @@ export default function BuddyMapExpo() {
 
   const location = useMemo(() => myLocation?.coords ?? null, [myLocation]);
 
-  // ─── Buddy profile cache ───────────────────────────
-  const buddyProfileCache = useRef<Map<number, Buddy>>(new Map());
-
-  const fetchBuddyProfile = useCallback(async (objectId: string): Promise<Buddy | null> => {
-    try {
-      const { data } = await apiClient.get<any>(endpoints.users.byId(objectId));
-      const user = data?.user ?? data;
-      if (!user) return null;
-
-      const id = user._id ?? user.id ?? objectId;
-      const joinedName = [user.fName, user.lName].filter(Boolean).join(' ').trim();
-      const fullName = user.name ?? (joinedName || 'Rider');
-
-      return {
-        id,
-        numericId: objectIdToNumericId(id),
-        name: fullName,
-        avatar: user.avatar ?? user.imageUrl ?? user.profilePicture ?? `https://i.pravatar.cc/150?u=${id}`,
-        latitude: 0, longitude: 0,
-        status: 'driving', battery: 100, lastSeen: 'just now',
-      };
-    } catch (e) {
-      console.warn('[Explore] fetchBuddyProfile failed for', objectId, e);
-      return null;
+  // ─── Build buddies from roster profiles (merge live location when available) ─
+  const buddies = useMemo<Buddy[]>(() => {
+    const result: Buddy[] = [];
+    for (const [numId, profile] of peerProfileMap) {
+      if (numId === numericUserId) continue;
+      const peer = peerLocations.get(numId);
+      const lastSeen = peer
+        ? (() => {
+            const timeDiff = Date.now() - peer.receivedAt;
+            return timeDiff < 5_000 ? 'just now'
+              : timeDiff < 60_000 ? `${Math.round(timeDiff / 1000)}s ago`
+              : `${Math.round(timeDiff / 60_000)}m ago`;
+          })()
+        : 'offline';
+      result.push({
+        id: profile.userId,
+        numericId: numId,
+        name: profile.name,
+        avatar: profile.picture ?? `https://i.pravatar.cc/150?u=${profile.userId}`,
+        latitude: peer?.lat ?? 0,
+        longitude: peer?.lng ?? 0,
+        speed: peer?.speed,
+        bearing: peer?.bearing,
+        status: peer ? trackingStatusLabel(peer.status) : 'offline',
+        battery: 100,
+        lastSeen,
+      });
     }
-  }, []);
-
-  // ─── Build buddies from live peers ─────────────────
-  const [buddies, setBuddies] = useState<Buddy[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const buildBuddies = async () => {
-      const result: Buddy[] = [];
-      for (const [numId, peer] of peerLocations) {
-        if (numId === numericUserId) continue;
-        let profile = buddyProfileCache.current.get(numId);
-        if (!profile) {
-          const objectId = peerIdMap.get(numId);
-          if (!objectId) continue;
-          const fetched = await fetchBuddyProfile(objectId);
-          if (fetched) { buddyProfileCache.current.set(numId, fetched); profile = fetched; }
-        }
-        const timeDiff = Date.now() - peer.receivedAt;
-        const lastSeen =
-          timeDiff < 5_000 ? 'just now' :
-          timeDiff < 60_000 ? `${Math.round(timeDiff / 1000)}s ago` :
-                              `${Math.round(timeDiff / 60_000)}m ago`;
-        result.push({
-          id: profile?.id ?? String(numId),
-          numericId: numId,
-          name: profile?.name ?? `Rider ${numId}`,
-          avatar: profile?.avatar ?? `https://i.pravatar.cc/150?u=${numId}`,
-          latitude: peer.lat, longitude: peer.lng,
-          speed: peer.speed, bearing: peer.bearing,
-          status: trackingStatusLabel(peer.status),
-          battery: profile?.battery ?? 100, lastSeen,
-        });
-      }
-      if (!cancelled) setBuddies(result);
-    };
-    buildBuddies();
-    return () => { cancelled = true; };
-  }, [peerLocations, peerIdMap, numericUserId, fetchBuddyProfile]);
+    return result;
+  }, [peerLocations, peerProfileMap, numericUserId]);
 
   // ─── UI state ──────────────────────────────────────
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -716,7 +682,7 @@ export default function BuddyMapExpo() {
               isConnected={isConnected}
               isPolling={isPolling}
               hasError={!!trackingError}
-              groupSize={groupSize}
+              groupSize={buddies?.length ? buddies?.length+1 : 1}
             />
           </View>
           <RideStrip rideMode={rideMode} onEndRide={endRide} />
@@ -802,6 +768,7 @@ export default function BuddyMapExpo() {
         action={incomingAction}
         onDismiss={() => setIncomingAction(null)}
         onNavigateToSender={navigateToSender}
+        displayAtTop={isQuickActionsOpen || isRidersOpen}
       />
     </View>
   );

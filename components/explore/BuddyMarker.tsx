@@ -1,7 +1,5 @@
-import { FontAwesome5 } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import type { Buddy } from '../ride/types';
 
 function getStatusIcon(status: string) {
@@ -21,14 +19,22 @@ function getStatusColor(status: string) {
   }
 }
 
-export const BuddyMarkerView = React.memo(({ buddy }: { buddy: Buddy }) => (
+export const BuddyMarkerView = React.memo(({ buddy }: { buddy: Buddy }) => {
+  console.log("buddhyi...............!!PLATFORM",  buddy, Platform.OS)
+ return (
   <View style={styles.buddyMarker}>
-    <Image source={{ uri: buddy.avatar }} style={styles.buddyAvatar} />
-    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(buddy.status) }]}>
+    {/* <Image source={{ uri: buddy.avatar }} style={styles.buddyAvatar} /> */}
+  {/* {buddy.name && ( */}
+    <View style={{backgroundColor:'red', height: 40, width: 40, borderRadius: 20, alignItems:'center', justifyContent:'center'}}>
+      {/* <Text style={{fontSize: 22, fontWeight:'bold', color:'#fff'}}>{buddy.name[0]}</Text> */}
+      <Text style={{fontSize: 22, fontWeight:'bold', color:'#fff'}}>{buddy.name[0]}</Text>
+      </View>
+    {/* )} */}
+    {/* <View style={[styles.statusBadge, { backgroundColor: getStatusColor(buddy.status) }]}>
       <FontAwesome5 name={getStatusIcon(buddy.status)} size={8} color="white" />
-    </View>
+    </View> */}
   </View>
-));
+)});
 
 const styles = StyleSheet.create({
   buddyMarker: { alignItems: 'center' },
