@@ -61,6 +61,9 @@ function RootLayout() {
                   name="join-ride/[id]"
                   options={{ headerShown: false }}
                 />
+                {/*New Flow screens*/}
+              <Stack.Screen name="searchScreen" options={{ headerShown: false }} />
+              <Stack.Screen name="tripDetailsScreen" options={{ headerShown: false }} />
               </Stack>
               <StatusBar style="auto" />
             </BottomSheetModalProvider>

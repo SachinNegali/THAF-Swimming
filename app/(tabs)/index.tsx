@@ -1,8 +1,8 @@
 import { TripCard } from '@/components/explore/TripCard';
 import { JOURNEYS } from '@/dummy-data/journeys';
 import { useFilterTrips, useTrips } from '@/hooks/api/useTrips';
-import { router } from 'expo-router';
 import * as Location from 'expo-location';
+import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
