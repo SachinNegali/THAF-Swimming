@@ -12,6 +12,7 @@ import { getUpload } from '@/stores/uploadStore';
 import type { MessageImageEntry } from '@/types/api';
 import type { UploadStatus } from '@/types/upload';
 import { Image } from 'expo-image';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { memo } from 'react';
 import {
   ActivityIndicator,
@@ -21,6 +22,23 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+const VideoFirstFrame = memo(({ uri }: { uri: string }) => {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    p.muted = true;
+    p.pause();
+  });
+  return (
+    <VideoView
+      player={player}
+      style={styles.image}
+      contentFit="cover"
+      nativeControls={false}
+      pointerEvents="none"
+    />
+  );
+});
 
 interface Props {
   imageId: string;
@@ -44,6 +62,7 @@ const ImageUploadThumbnail = memo(
     imageId,
     serverStatus,
     thumbnailUrl,
+    optimizedUrl,
     width,
     height,
     mediaType = 'image',
@@ -91,6 +110,11 @@ const ImageUploadThumbnail = memo(
     // Allow opening as soon as the server has finished processing.
     const canOpen = isCompleted && !!onPress;
 
+    // For videos without a server thumbnail, render the video itself paused
+    // so the first frame acts as the preview.
+    const videoPreviewUri =
+      isVideo && !thumbnailUrl ? optimizedUrl ?? localUri ?? null : null;
+
     return (
       <Pressable
         style={[styles.container, { width: imageWidth, height: imageHeight }]}
@@ -104,13 +128,15 @@ const ImageUploadThumbnail = memo(
             contentFit="cover"
             transition={200}
           />
+        ) : videoPreviewUri ? (
+          <VideoFirstFrame uri={videoPreviewUri} />
         ) : (
           <View style={[styles.image, styles.emptyTile]}>
             {isVideo ? <Text style={styles.videoFallback}>VIDEO</Text> : null}
           </View>
         )}
 
-        {isCompleted && isVideo && (
+        {isVideo && (source || videoPreviewUri) && (
           <View style={styles.playBadge} pointerEvents="none">
             <Text style={styles.playGlyph}>▶</Text>
           </View>
