@@ -79,6 +79,22 @@ const ExploreScreen = React.memo(({ onOpenRide, onTabChange, onCreate }: Explore
             <RideRow key={r.id} r={r} onPress={handleRidePress} index={i} />
           ))}
         </View>
+        <Pressable
+                style={{
+                  position: 'absolute',
+                  bottom: 20,
+                  right: 20,
+                  backgroundColor: '#0f172a',
+                  width: 50,
+                  height: 50,
+                  borderRadius: 25,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                onPress={() => router.push('/createTripv2')}
+              >
+                <Text style={{fontSize: 24, fontWeight: '400', color: colors.paper, fontFamily: fonts.sans}}>+</Text>
+              </Pressable>
       </ScrollView>
     </SafeAreaView>
   );

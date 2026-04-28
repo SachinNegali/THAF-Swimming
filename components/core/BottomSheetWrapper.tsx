@@ -8,6 +8,7 @@ import {
 } from '@gorhom/bottom-sheet';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, ViewStyle } from 'react-native';
+import { colors } from '../../theme';
 
 interface BottomSheetProps extends Omit<BottomSheetModalProps, 'ref' | 'snapPoints'> {
   visible: boolean;
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
   background: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.paper,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
@@ -97,11 +98,10 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   handleIndicator: {
-    width: 40,
+    width: 36,
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.n300,
     borderRadius: 2,
-    // marginTop: 8,
   },
   contentContainer: {
     flex: 1,

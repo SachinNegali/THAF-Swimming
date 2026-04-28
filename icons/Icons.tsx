@@ -1,5 +1,5 @@
 import React from 'react';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { colors } from '../theme';
 
 export const IconSearch = ({ size = 18, color = colors.ink }: { size?: number; color?: string }) => (
@@ -155,5 +155,96 @@ export const IconPlus = ({ size = 18, color = colors.ink }: { size?: number; col
 export const IconInfinity = ({ size = 18, color = colors.ink }: { size?: number; color?: string }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M18.178 8c5.096 0 5.096 8 0 8-5.095 0-7.133-8-12.739-8-4.585 0-4.585 8 0 8 5.606 0 7.644-8 12.739-8z" />
+  </Svg>
+);
+
+// Home
+export const IconHome = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" />
+  </Svg>
+);
+
+// Compass
+export const IconCompass = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="9" />
+    <Path d="M15.5 8.5L13.5 13.5L8.5 15.5L10.5 10.5Z" />
+  </Svg>
+);
+
+// Map
+export const IconMap = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M9 3L3 5v16l6-2 6 2 6-2V3l-6 2z" />
+    <Path d="M9 3v16M15 5v16" />
+  </Svg>
+);
+
+// User
+export const IconUser = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="8" r="4" />
+    <Path d="M4 21a8 8 0 0 1 16 0" />
+  </Svg>
+);
+
+// Filter
+export const IconFilter = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M3 5h18M6 12h12M10 19h4" />
+  </Svg>
+);
+
+// Clock
+export const IconClock = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="9" />
+    <Path d="M12 7v5l3 2" />
+  </Svg>
+);
+
+// Pin
+export const IconPin = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M12 22s-7-7-7-13a7 7 0 0 1 14 0c0 6-7 13-7 13z" />
+    <Circle cx="12" cy="9" r="2.5" />
+  </Svg>
+);
+
+// Bike
+export const IconBike = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="5.5" cy="17" r="3" />
+    <Circle cx="18.5" cy="17" r="3" />
+    <Path d="M5.5 17L10 8h4l3 9M10 8h6M14 8l2-3h2" />
+  </Svg>
+);
+
+// Route
+export const IconRoute = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="6" cy="5" r="2" />
+    <Circle cx="18" cy="19" r="2" />
+    <Path d="M8 5h6a4 4 0 0 1 0 8h-4a4 4 0 0 0 0 8h6" />
+  </Svg>
+);
+
+// Users
+export const IconUsers = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="9" cy="8" r="3.5" />
+    <Path d="M3 20a6 6 0 0 1 12 0" />
+    <Circle cx="17" cy="7" r="2.5" opacity="0.7" />
+    <Path d="M15 14a5 5 0 0 1 6 5" opacity="0.7" />
+  </Svg>
+);
+
+// More (3 dots)
+export const IconMore = ({ size = 22, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <Circle cx="5" cy="12" r="1.2" />
+    <Circle cx="12" cy="12" r="1.2" />
+    <Circle cx="19" cy="12" r="1.2" />
   </Svg>
 );
