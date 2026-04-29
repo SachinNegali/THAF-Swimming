@@ -31,8 +31,8 @@ export const StepRoute = React.memo(({ data, set }: StepRouteProps) => {
     set('stops', data.stops.filter((_, i) => i !== index));
   };
 
-  const fromName = data.from?.name ?? '';
-  const toName = data.to?.name ?? '';
+  const fromName = data.startLocation?.name ?? '';
+  const toName = data.destination?.name ?? '';
 
   return (
     <View>
@@ -50,8 +50,8 @@ export const StepRoute = React.memo(({ data, set }: StepRouteProps) => {
         <PlaceInput
           label="FROM"
           icon={<View style={styles.dotOutline} />}
-          value={data.from}
-          onSelect={(p) => set('from', p)}
+          value={data.startLocation}
+          onSelect={(p) => set('startLocation', p)}
           placeholder="Starting city"
         />
 
@@ -73,8 +73,8 @@ export const StepRoute = React.memo(({ data, set }: StepRouteProps) => {
         <PlaceInput
           label="TO"
           icon={<View style={styles.dotFilled} />}
-          value={data.to}
-          onSelect={(p) => set('to', p)}
+          value={data.destination}
+          onSelect={(p) => set('destination', p)}
           placeholder="Destination"
         />
       </View>

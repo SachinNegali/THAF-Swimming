@@ -93,8 +93,8 @@ export interface TripPlace {
 
 export interface CreateTripDraft {
   title: string;
-  from: TripPlace | null;
-  to: TripPlace | null;
+  startLocation: TripPlace | null;
+  destination: TripPlace | null;
   stops: TripPlace[];
   startDate: string | null; // ISO 'YYYY-MM-DD'
   startTime: string | null; // 'HH:mm' (24h)

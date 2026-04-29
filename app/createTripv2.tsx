@@ -15,8 +15,8 @@ const STEPS = ['Route', 'Schedule', 'Review'];
 
 const INITIAL_DRAFT: CreateTripDraft = {
   title: '',
-  from: null,
-  to: null,
+  startLocation: null,
+  destination: null,
   stops: [],
   startDate: null,
   startTime: null,
@@ -38,7 +38,7 @@ const CreateTripV2 = React.memo(() => {
   }, []);
 
   const canNext = useMemo(() => {
-    if (step === 0) return data.from !== null && data.to !== null;
+    if (step === 0) return data.startLocation !== null && data.destination !== null;
     if (step === 1) return data.startDate !== null && data.startTime !== null && data.days > 0;
     return true;
   }, [step, data]);
