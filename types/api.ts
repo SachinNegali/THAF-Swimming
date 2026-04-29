@@ -136,7 +136,12 @@ export interface CreateTripRequest {
   destination: GeoLocation;
   stops?: GeoLocation[];
   startDate: string;
-  endDate: string;
+  startTime: string | null;
+  days: number;
+  spots: number | null;
+  requireApproval: boolean;
+  distance: number;
+  elevation: number;
 }
 
 export interface UpdateTripRequest {

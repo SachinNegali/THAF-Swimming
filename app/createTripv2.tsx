@@ -1,15 +1,23 @@
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton } from '../components/core/form/PrimaryButton';
 import { Kicker } from '../components/core/Kicker';
 import { StepProgress } from '../components/createTrip/StepProgress';
 import { StepReview } from '../components/createTrip/StepReview';
 import { StepRoute } from '../components/createTrip/StepRoute';
 import { StepSchedule } from '../components/createTrip/StepSchedule';
+import { useCreateTrip } from '../hooks/api/useTrips';
 import { IconArrowRight, IconX } from '../icons/Icons';
 import { colors, fonts } from '../theme';
-import { CreateTripDraft } from '../types';
+import { CreateTripDraft, TripPlace } from '../types';
+import type { GeoLocation } from '../types/api';
+
+const toGeoLocation = (p: TripPlace): GeoLocation => ({
+  ...p,
+  type: (p.type as GeoLocation['type']) ?? 'city',
+});
 
 const STEPS = ['Route', 'Schedule', 'Review'];
 
@@ -30,11 +38,51 @@ const CreateTripV2 = React.memo(() => {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<CreateTripDraft>(INITIAL_DRAFT);
-
-  console.log("CREATE TRIP DATA.....", data)
+  const createTrip = useCreateTrip();
 
   const set = useCallback(<K extends keyof CreateTripDraft>(key: K, value: CreateTripDraft[K]) => {
     setData((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const results = await Location.reverseGeocodeAsync({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+        if (cancelled) return;
+        const name =
+          results?.[0]?.city || results?.[0]?.subregion || results?.[0]?.region;
+        if (!name) return;
+        setData((prev) =>
+          prev.startLocation
+            ? prev
+            : {
+                ...prev,
+                startLocation: {
+                  coordinates: {
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                  },
+                  type: 'city',
+                  name,
+                },
+              },
+        );
+      } catch (e) {
+        console.warn('[CreateTripV2] Location lookup failed:', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const canNext = useMemo(() => {
@@ -48,9 +96,32 @@ const CreateTripV2 = React.memo(() => {
   }, [router]);
 
   const handlePublish = useCallback(() => {
-    // TODO: wire up publish
-    if (router.canGoBack()) router.back();
-  }, [router]);
+    if (!data.startLocation || !data.destination || !data.startDate) return;
+    createTrip.mutate(
+      {
+        title: data.title,
+        startLocation: toGeoLocation(data.startLocation),
+        destination: toGeoLocation(data.destination),
+        stops: data.stops.filter((s) => s.name).map(toGeoLocation),
+        startDate: data.startDate,
+        startTime: data.startTime,
+        days: data.days,
+        spots: data.spots,
+        description: data.description,
+        requireApproval: data.requireApproval,
+        distance: 550,
+        elevation: 2234,
+      },
+      {
+        onSuccess: () => {
+          if (router.canGoBack()) router.back();
+        },
+        onError: (err) => {
+          Alert.alert('Could not publish trip', err.message);
+        },
+      },
+    );
+  }, [data, createTrip, router]);
 
   const handleContinue = useCallback(() => {
     if (step < STEPS.length - 1) setStep(step + 1);
@@ -93,11 +164,18 @@ const CreateTripV2 = React.memo(() => {
           </Pressable>
         )}
         <PrimaryButton
-          onPress={canNext ? handleContinue : undefined}
+          onPress={canNext && !createTrip.isPending ? handleContinue : undefined}
           icon={<IconArrowRight size={16} color={colors.white} />}
-          style={{ ...styles.primary, ...(canNext ? null : styles.primaryDisabled) }}
+          style={{
+            ...styles.primary,
+            ...(canNext && !createTrip.isPending ? null : styles.primaryDisabled),
+          }}
         >
-          {step < STEPS.length - 1 ? 'Continue' : 'Publish trip'}
+          {step < STEPS.length - 1
+            ? 'Continue'
+            : createTrip.isPending
+              ? 'Publishing…'
+              : 'Publish trip'}
         </PrimaryButton>
       </View>
     </SafeAreaView>
