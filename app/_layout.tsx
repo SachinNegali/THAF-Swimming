@@ -66,6 +66,7 @@ function RootLayout() {
               <Stack.Screen name="tripDetailsScreen" options={{ headerShown: false }} />
               <Stack.Screen name="createTripv2" options={{ headerShown: false }} />
               <Stack.Screen name="medicalV2" options={{ headerShown: false }} />
+              <Stack.Screen name="chatThreadV2" options={{ headerShown: false }} />
               </Stack>
               <StatusBar style="auto" />
             </BottomSheetModalProvider>

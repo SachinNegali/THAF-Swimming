@@ -1,4 +1,4 @@
-import { FeaturedRide, JoinRequest, MedicalChecklistItem, MedicalProfile, Member, ProfileData, ProfileTrips, QAItem, Ride, SearchRide, TripDetails } from '../types';
+import { Buddy, ChatExpense, ChatMember, ChatMessage, ChatThread, FeaturedRide, JoinRequest, MedicalChecklistItem, MedicalProfile, Member, ProfileData, ProfileTrips, QAItem, QuickMessage, Ride, SearchRide, TripDetails } from '../types';
 
 export const DEMO_FEATURED: FeaturedRide = {
   id: 'f1',
@@ -123,4 +123,56 @@ export const DEMO_MEDICAL_CHECKLIST: MedicalChecklistItem[] = [
   { label: 'Emergency contact', detail: 'At least one — verified by SMS', done: false },
   { label: 'Allergies & conditions', detail: 'Optional, helps responders', done: false },
   { label: 'Home address', detail: 'Optional, used for insurance claims', done: false },
+];
+
+export const DEMO_CHAT_THREADS: ChatThread[] = [
+  { id: 't1', title: 'Deccan Plateau Run', kind: 'group', members: 4, last: 'Ravi: Pit stop at 340 — fuel + chai', time: '2m', unread: 3, tone: 0, pinned: true, live: true },
+  { id: 't2', title: 'Spiti Circuit', kind: 'group', members: 8, last: 'Priya shared an image', time: '18m', unread: 1, tone: 1 },
+  { id: 't3', title: 'Arjun Mehta', kind: 'dm', last: 'Got it, see you at 6am', time: '1h', unread: 0, tone: 2 },
+  { id: 't4', title: 'Konkan Weekend', kind: 'group', members: 6, last: 'Expense settled: ₹1,240', time: '3h', unread: 0, tone: 3 },
+  { id: 't5', title: 'Dev Kapoor', kind: 'dm', last: 'Will carry spare clutch cable', time: '1d', unread: 0, tone: 0 },
+  { id: 't6', title: 'Nilgiri Tea Country', kind: 'group', members: 5, last: 'Route updated — via Coonoor', time: '2d', unread: 0, tone: 1 },
+];
+
+export const DEMO_CHAT_MESSAGES: ChatMessage[] = [
+  { kind: 'system', text: 'Trip started · Pune → Hyderabad', time: '06:00' },
+  { kind: 'msg', from: 'Arjun', tone: 0, me: false, text: 'Fueled up and rolling. Meet at Lonavala toll booth by 07:30.', time: '06:12' },
+  { kind: 'msg', from: 'Priya', tone: 1, me: false, text: 'Copy. Carrying the first-aid kit and rain gear for everyone.', time: '06:14' },
+  { kind: 'image', from: 'Priya', tone: 1, me: false, caption: 'Weather check ahead', filename: 'IMG_4128.HEIC', time: '06:15' },
+  { kind: 'msg', from: 'You', me: true, text: "I'll bring spare fuel + the SOS beacon. See you soon.", time: '06:17' },
+  { kind: 'expense', from: 'Arjun', tone: 0, me: false, title: 'Fuel — Shell Lonavala', amount: '₹2,400', split: '4 ways · ₹600/ea', paidBy: 'Arjun', status: 'pending', payCta: 'Pay ₹600', time: '08:40' },
+  { kind: 'msg', from: 'Dev', tone: 2, me: false, text: 'Settled my share.', time: '08:42' },
+  { kind: 'location', from: 'Ravi', tone: 3, me: false, label: 'Dropping pin at pit stop', place: 'Surya Dhaba, NH-48', distance: '340 km · 58 km/h', time: '11:22' },
+];
+
+export const DEMO_CHAT_EXPENSES: ChatExpense[] = [
+  { id: 'e1', title: 'Fuel — Shell Lonavala', by: 'Arjun', amount: 2400, split: 600, status: 'pending', day: 'Today' },
+  { id: 'e2', title: 'Breakfast — Surya Dhaba', by: 'Priya', amount: 720, split: 180, status: 'settled', day: 'Today' },
+  { id: 'e3', title: 'Tolls NH-48', by: 'You', amount: 340, split: 85, status: 'owed', day: 'Today' },
+];
+
+export const DEMO_CHAT_MEMBERS: ChatMember[] = [
+  { id: 'you', name: 'You', tone: 2 },
+  { id: 'arjun', name: 'Arjun', tone: 0 },
+  { id: 'priya', name: 'Priya', tone: 1 },
+  { id: 'dev', name: 'Dev', tone: 2 },
+  { id: 'ravi', name: 'Ravi', tone: 3 },
+];
+
+export const DEMO_BUDDIES: Buddy[] = [
+  { id: 'me', cs: 'BLAZE', name: 'You', tone: 0, x: 52, y: 58, head: 12, kmh: 64, bat: 78, sig: 4, role: 'leader', status: 'live', eta: '—', last: 'now' },
+  { id: 'b1', cs: 'KESTREL', name: 'Anjali Negali', tone: 1, x: 47, y: 53, head: 12, kmh: 62, bat: 64, sig: 4, role: 'sweep', status: 'live', eta: '+1m', last: '3s' },
+  { id: 'b2', cs: 'WIRE', name: 'Rishi Pawar', tone: 2, x: 41, y: 50, head: 12, kmh: 58, bat: 41, sig: 3, role: 'rider', status: 'live', eta: '+3m', last: '8s' },
+  { id: 'b3', cs: 'GINGER', name: 'Mira K.', tone: 3, x: 35, y: 46, head: 12, kmh: 0, bat: 92, sig: 2, role: 'rider', status: 'stopped', eta: '+12m', last: '4m' },
+  { id: 'b4', cs: 'NORTH', name: 'Vikram J.', tone: 0, x: 60, y: 64, head: 12, kmh: 71, bat: 33, sig: 4, role: 'scout', status: 'live', eta: '−40s', last: '1s' },
+  { id: 'b5', cs: 'PAPER', name: 'Tara D.', tone: 1, x: 28, y: 41, head: 12, kmh: 0, bat: 18, sig: 1, role: 'rider', status: 'lost', eta: '?', last: '14m' },
+];
+
+export const DEMO_QUICK_MSGS: QuickMessage[] = [
+  { id: 'pace', label: 'Pace ok?', icon: 'pulse' },
+  { id: 'fuel', label: 'Need fuel', icon: 'fuel' },
+  { id: 'photo', label: 'Photo break', icon: 'cam' },
+  { id: 'stop', label: 'Stop ahead', icon: 'stop' },
+  { id: 'tea', label: 'Chai stop', icon: 'tea' },
+  { id: 'closeup', label: 'Close up', icon: 'close' },
 ];

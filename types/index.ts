@@ -223,3 +223,90 @@ export interface MedicalProfile {
   documents: MedicalDocument[];
   showOnLockScreen: boolean;
 }
+
+
+// Chat
+export type ChatThreadKind = 'group' | 'dm';
+export type ChatFilter = 'all' | 'active' | 'unread' | 'direct';
+export type ChatTabId = 'messages' | 'media' | 'expenses';
+export type ChatExpenseStatus = 'pending' | 'settled' | 'owed';
+
+export interface ChatThread {
+  id: string;
+  title: string;
+  kind: ChatThreadKind;
+  members?: number;
+  last: string;
+  time: string;
+  unread: number;
+  tone: number;
+  pinned?: boolean;
+  live?: boolean;
+}
+
+export type ChatMessage =
+  | { kind: 'system'; text: string; time: string }
+  | { kind: 'msg'; from: string; tone?: number; me?: boolean; text: string; time: string }
+  | { kind: 'image'; from: string; tone?: number; me?: boolean; caption?: string; time: string; filename?: string }
+  | {
+      kind: 'expense';
+      from: string;
+      tone?: number;
+      me?: boolean;
+      title: string;
+      amount: string;
+      split: string;
+      paidBy: string;
+      status: ChatExpenseStatus;
+      time: string;
+      payCta?: string;
+    }
+  | { kind: 'location'; from: string; tone?: number; me?: boolean; label: string; place: string; distance: string; time: string };
+
+export interface ChatExpense {
+  id: string;
+  title: string;
+  by: string;
+  amount: number;
+  split: number;
+  status: ChatExpenseStatus;
+  day: string;
+}
+
+export interface ChatMember {
+  id: string;
+  name: string;
+  tone: number;
+}
+
+
+// Buddy tracking
+export type BuddyStatus = 'live' | 'stopped' | 'lost';
+export type BuddyRole = 'leader' | 'sweep' | 'rider' | 'scout';
+export type BuddyMapMode = 'join' | 'live' | 'sos' | 'important' | 'regular';
+export type BuddySheetState = 'collapsed' | 'expanded';
+export type AlertKind = 'sos' | 'important' | 'regular' | null;
+export type QuickMsgIcon = 'pulse' | 'fuel' | 'cam' | 'stop' | 'tea' | 'close';
+
+export interface Buddy {
+  id: string;
+  cs: string;       // callsign
+  name: string;
+  tone: number;
+  x: number;        // map percent x
+  y: number;        // map percent y
+  head: number;     // heading deg
+  kmh: number;
+  bat: number;      // 0..100
+  sig: number;      // 0..4
+  role: BuddyRole;
+  status: BuddyStatus;
+  eta: string;
+  last: string;
+}
+
+export interface QuickMessage {
+  id: string;
+  label: string;
+  icon: QuickMsgIcon;
+}

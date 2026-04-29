@@ -14,6 +14,13 @@ export const RideRow = React.memo(({ r, onPress, index = 0 }: RideRowProps) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateAnim = useRef(new Animated.Value(20)).current;
 
+
+  console.log('RECOMMENDED...r', r);
+
+  const from = r?.startLocation?.name;
+  const to = r?.destination?.name;
+  const {title, startDate, participants, endDate} = r
+
   useEffect(() => {
     const delay = index * 60;
     Animated.parallel([
@@ -35,15 +42,23 @@ export const RideRow = React.memo(({ r, onPress, index = 0 }: RideRowProps) => {
                 <Text style={styles.tagText}>{r.level}</Text>
               </View>
             </View>
-            <Text style={styles.title}>{r.title}</Text>
+            {/* <Text style={styles.title}>{r.title}</Text> */}
+            <Text style={styles.title}>{title}</Text>
+            
             <View style={styles.routeRow}>
-              <Text style={styles.routeText}>{r.from}</Text>
+              {/* <Text style={styles.routeText}>{r.from}</Text> */}
+              <Text style={styles.routeText}>{from}</Text>
+              
               <Text style={styles.routeArrow}> → </Text>
-              <Text style={styles.routeText}>{r.to}</Text>
+              {/* <Text style={styles.routeText}>{r.to}</Text> */}
+              <Text style={styles.routeText}>{to}</Text>
             </View>
           </View>
           <View style={styles.rightContent}>
-            <Text style={styles.date}>{r.start}</Text>
+            <Text style={styles.date}>{new Date(startDate).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+            })}</Text>
             <Text style={styles.dateLabel}>Departs</Text>
           </View>
         </View>
@@ -57,6 +72,7 @@ export const RideRow = React.memo(({ r, onPress, index = 0 }: RideRowProps) => {
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>T</Text>
               <Text style={styles.metricValue}>{r.days}d</Text>
+              {/* <Text style={styles.metricValue}>{diffInDays}d</Text> */}
             </View>
           </View>
           <View style={styles.spots}>
@@ -68,7 +84,8 @@ export const RideRow = React.memo(({ r, onPress, index = 0 }: RideRowProps) => {
               ))}
             </View>
             <Text style={styles.spotsText}>
-              {r.spots}<Text style={{ color: colors.n500 }}>/{r.total}</Text>
+              {/* {r.spots}<Text style={{ color: colors.n500 }}>/{r.total}</Text> */}
+              {participants.length}
             </Text>
           </View>
         </View>

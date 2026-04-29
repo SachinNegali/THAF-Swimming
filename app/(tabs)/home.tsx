@@ -1,6 +1,6 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { DEMO_FEATURED, DEMO_RIDES } from '../../data/demoData';
+import { DEMO_FEATURED } from '../../data/demoData';
 import { colors, fonts } from '../../theme';
 import { FeaturedRide, Ride } from '../../types';
 // import { StatusBar } from '../../components/co/StatusBar';
@@ -11,6 +11,9 @@ import { FeaturedRideCard } from '../../components/home/FeaturedRideCard';
 import { LiveTripCard } from '../../components/home/LiveTripCard';
 import { RideRow } from '../../components/home/RideRow';
 import { IconArrowRight, IconSearch } from '../../icons/Icons';
+// import * as Location from 'expo-location';
+import { useFilterTrips } from '@/hooks/api/useTrips';
+import { Accuracy, getCurrentPositionAsync, requestForegroundPermissionsAsync, reverseGeocodeAsync } from 'expo-location';
 
 interface ExploreScreenProps {
   onOpenRide: (ride: Ride | FeaturedRide) => void;
@@ -24,11 +27,52 @@ const ExploreScreen = React.memo(({ onOpenRide, onTabChange, onCreate }: Explore
   // const handleRidePress = useCallback((ride: Ride) => () => onOpenRide(ride), [onOpenRide]);
   const handleRidePress = () => router.push("/tripDetailsScreen");
 
+
+  const [userCity, setUserCity] = useState<string | null>(null);
+
+  const {
+      data: recommendedResponse,
+      isLoading: isLoadingRecommended,
+    } = useFilterTrips(userCity ? { from: userCity } : null);
+    // const recommended = (() => {
+    //   const trips = recommendedResponse?.trips ?? [];
+    //   return trips.length > 0 ? trips.map(mapTripToJourney) : [];
+    // })();
+
+    console.log("RECOMMENDED...", recommendedResponse)
+  
+    useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const { status } = await requestForegroundPermissionsAsync();
+          if (status !== 'granted') return;
+  
+          const pos = await getCurrentPositionAsync({
+            accuracy: Accuracy.Balanced,
+          });
+          console.log("home...pos", pos)
+          const results = await reverseGeocodeAsync({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          });
+          console.log("home...results", results)
+          if (cancelled) return;
+          const city = results?.[0]?.city || results?.[0]?.subregion || results?.[0]?.region;
+          console.log("home...city", city)
+          if (city) setUserCity(city);
+        } catch (e) {
+          console.warn('[Home] Location lookup failed:', e);
+        }
+      })();
+      return () => { cancelled = true; };
+    }, []);
+
+    console.log("home...userCity", userCity);
+
   return (
     <SafeAreaView style={styles.screen}>
-      {/* <StatusBar /> */}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={styles.header}>
           <View>
             <Kicker>Friday · 19 Apr</Kicker>
@@ -44,13 +88,10 @@ const ExploreScreen = React.memo(({ onOpenRide, onTabChange, onCreate }: Explore
             <Avatar name="Ravi Negali" size={36} tone={2} />
           </View>
         </View>
-
-        {/* Live Trip */}
         <View style={styles.section}>
           <LiveTripCard onTrackPress={handleTrackPress} />
         </View>
 
-        {/* Featured */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Kicker>Featured this week</Kicker>
@@ -59,7 +100,6 @@ const ExploreScreen = React.memo(({ onOpenRide, onTabChange, onCreate }: Explore
           <FeaturedRideCard ride={DEMO_FEATURED} onPress={handleFeaturedPress} />
         </View>
 
-        {/* Ride List */}
         <View style={styles.section}>
           <View style={[styles.sectionHeader, { alignItems: 'flex-end', marginBottom: 4 }]}>
             <View>
@@ -74,12 +114,14 @@ const ExploreScreen = React.memo(({ onOpenRide, onTabChange, onCreate }: Explore
         </View>
 
         <View style={styles.list}>
-          {DEMO_RIDES.map((r, i) => (
+          {recommendedResponse?.trips?.map((r, i) => (
             // <RideRow key={r.id} r={r} onPress={handleRidePress(r)} index={i} />
             <RideRow key={r.id} r={r} onPress={handleRidePress} index={i} />
           ))}
         </View>
-        <Pressable
+      </ScrollView>
+
+      <Pressable
                 style={{
                   position: 'absolute',
                   bottom: 20,
@@ -95,7 +137,6 @@ const ExploreScreen = React.memo(({ onOpenRide, onTabChange, onCreate }: Explore
               >
                 <Text style={{fontSize: 24, fontWeight: '400', color: colors.paper, fontFamily: fonts.sans}}>+</Text>
               </Pressable>
-      </ScrollView>
     </SafeAreaView>
   );
 });

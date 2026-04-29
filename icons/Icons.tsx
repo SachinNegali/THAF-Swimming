@@ -248,3 +248,82 @@ export const IconMore = ({ size = 22, color = colors.ink }: { size?: number; col
     <Circle cx="19" cy="12" r="1.2" />
   </Svg>
 );
+
+// Layers
+export const IconLayers = ({ size = 18, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M12 4l9 5-9 5-9-5z" />
+    <Path d="M3 14l9 5 9-5" />
+  </Svg>
+);
+
+// Locate
+export const IconLocate = ({ size = 18, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="3" />
+    <Path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+  </Svg>
+);
+
+// Alert (warning triangle)
+export const IconAlert = ({ size = 18, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M12 4l10 16H2z" />
+    <Path d="M12 10v4M12 17v.5" />
+  </Svg>
+);
+
+// Phone
+export const IconPhone = ({ size = 18, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />
+  </Svg>
+);
+
+// Pulse / heartbeat
+export const IconPulse = ({ size = 14, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M3 12h4l2-6 4 12 2-6h6" />
+  </Svg>
+);
+
+// Fuel
+export const IconFuel = ({ size = 14, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <Rect x="4" y="4" width="10" height="16" rx="1" />
+    <Path d="M14 9h3a2 2 0 0 1 2 2v6" />
+  </Svg>
+);
+
+// Camera
+export const IconCamera = ({ size = 14, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <Rect x="3" y="7" width="18" height="13" rx="2" />
+    <Circle cx="12" cy="13.5" r="3.5" />
+    <Path d="M9 7l1.5-2h3L15 7" />
+  </Svg>
+);
+
+// Stop sign
+export const IconStop = ({ size = 14, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M9 4h6l5 5v6l-5 5H9l-5-5V9z" />
+  </Svg>
+);
+
+// Tea cup
+export const IconTea = ({ size = 14, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M5 8h12v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z" />
+    <Path d="M17 10h2a2 2 0 0 1 0 4h-2" />
+    <Path d="M8 4q1 1 0 2M12 4q1 1 0 2" />
+  </Svg>
+);
+
+// CloseUp (target)
+export const IconCloseUp = ({ size = 14, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="3" />
+    <Circle cx="12" cy="12" r="8" />
+  </Svg>
+);

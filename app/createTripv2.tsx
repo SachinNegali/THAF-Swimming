@@ -29,6 +29,8 @@ const CreateTripV2 = React.memo(() => {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<CreateTripDraft>(INITIAL_DRAFT);
 
+  console.log("CREATE TRIP DATA.....", data)
+
   const set = useCallback(<K extends keyof CreateTripDraft>(key: K, value: CreateTripDraft[K]) => {
     setData((prev) => ({ ...prev, [key]: value }));
   }, []);
