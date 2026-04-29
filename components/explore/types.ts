@@ -25,7 +25,7 @@ export interface LatLng {
 
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyBIaPQX7NEd3CBNIbRw93kKG890LPyXcWs';
 // export const TRACKING_WS_URL = 'wss://api.tankhalfull.com/tracking';
-export const TRACKING_WS_URL = 'wss://50b4-106-51-68-141.ngrok-free.app/tracking';
+export const TRACKING_WS_URL = 'wss://46bd-106-51-68-141.ngrok-free.app/tracking';
 export const BUDDY_API_BASE = 'https://api.tankhalfull.com/v1';
 
 export const TRAFFIC_COLORS = {

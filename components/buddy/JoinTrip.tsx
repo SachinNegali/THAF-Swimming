@@ -7,9 +7,14 @@ import { Hairline } from '../core/Hairline';
 import { Kicker } from '../core/Kicker';
 import { QRViewfinder } from './QRViewfinder';
 
+export type JoinTripResult =
+  | { kind: 'solo' }
+  | { kind: 'code'; code: string }
+  | { kind: 'scan'; payload: string };
+
 interface JoinTripProps {
   onBack?: () => void;
-  onJoined: () => void;
+  onJoined: (result: JoinTripResult) => void;
 }
 
 type JoinTab = 'scan' | 'code';
@@ -26,6 +31,9 @@ export const JoinTrip = React.memo(({ onBack, onJoined }: JoinTripProps) => {
     setCode(next);
     if (nv && i < 5) inputs.current[i + 1]?.focus();
   };
+
+  const codeString = code.join('').trim();
+  const codeReady = codeString.length === 6;
 
   return (
     <View style={styles.screen}>
@@ -104,7 +112,7 @@ export const JoinTrip = React.memo(({ onBack, onJoined }: JoinTripProps) => {
         </View>
 
         <Pressable
-          onPress={onJoined}
+          onPress={() => onJoined({ kind: 'solo' })}
           style={({ pressed }) => [styles.soloCard, pressed && styles.soloPressed]}
         >
           <View style={styles.soloIcon}>
@@ -119,7 +127,10 @@ export const JoinTrip = React.memo(({ onBack, onJoined }: JoinTripProps) => {
 
         {tab === 'code' && (
           <View style={styles.cta}>
-            <PrimaryButton onPress={onJoined} icon={<IconArrowRight size={16} color={colors.white} />}>
+            <PrimaryButton
+              onPress={() => codeReady && onJoined({ kind: 'code', code: codeString })}
+              icon={<IconArrowRight size={16} color={colors.white} />}
+            >
               Join the pack
             </PrimaryButton>
           </View>

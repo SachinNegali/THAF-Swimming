@@ -160,7 +160,8 @@ export default function TripDetailsScreen() {
           <TouchableOpacity
             style={styles.startTripButton}
             activeOpacity={0.85}
-            onPress={() => router.push(`/(tabs)/explore?tripId=${id ?? ''}&startRide=1` as any)}
+            onPress={() => router.push(`/(tabs)/buddy?tripId=${id ?? ''}&startRide=1` as any)}
+            // onPress={() => router.push(`/(tabs)/explore?tripId=${id ?? ''}&startRide=1` as any)}
           >
             <Text style={styles.startTripButtonText}>Start Trip...</Text>
           </TouchableOpacity>

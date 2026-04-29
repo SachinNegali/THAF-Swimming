@@ -1,108 +1,188 @@
-import React from 'react';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import React, { RefObject } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Circle, Defs, Path, Pattern, Rect, G, Line, Text as SvgText } from 'react-native-svg';
-import { colors } from '../../theme';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import {
+  BuddyMapMarker,
+  type LatLng,
+  ROUTE_MODE_COLORS,
+  type RouteMode,
+  type TrafficSegment,
+} from '../explore';
+import type { Buddy as TrackedBuddy } from '../ride/types';
 
-const WAYPOINTS = [
-  { x: 70, y: 720, label: 'START · PUNE' },
-  { x: 150, y: 520, label: 'LONAVALA' },
-  { x: 240, y: 200, label: 'MAHABALESHWAR' },
-  { x: 360, y: 60, label: 'GOA' },
-];
+interface PaperMapProps {
+  mapRef: RefObject<MapView | null>;
+  location: { latitude: number; longitude: number; heading?: number | null } | null;
+  destination: LatLng | null;
+  buddies: TrackedBuddy[];
+  routeCoordinates: LatLng[];
+  trafficSegments: TrafficSegment[];
+  routeMode: RouteMode;
+  isNavigating: boolean;
+  heading: number;
+  getDistance: (lat1: number, lon1: number, lat2: number, lon2: number) => string;
+  onMapPress?: (e: any) => void;
+  onBuddyPress: (b: TrackedBuddy) => void;
+  onCalloutPress: (b: TrackedBuddy) => void;
+}
 
-export const PaperMap = React.memo(() => (
-  <View style={styles.wrap}>
-    <Svg
-      width="100%"
-      height="100%"
-      viewBox="0 0 400 800"
-      preserveAspectRatio="xMidYMid slice"
+export const PaperMap = React.memo(({
+  mapRef,
+  location,
+  destination,
+  buddies,
+  routeCoordinates,
+  trafficSegments,
+  routeMode,
+  isNavigating,
+  heading,
+  getDistance,
+  onMapPress,
+  onBuddyPress,
+  onCalloutPress,
+}: PaperMapProps) => {
+  if (!location) return <View style={styles.wrap} />;
+
+  return (
+    <MapView
+      ref={mapRef}
+      style={styles.wrap}
+      provider={PROVIDER_GOOGLE}
+      initialRegion={{
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      }}
+      onPress={onMapPress}
+      showsUserLocation={!isNavigating}
+      showsMyLocationButton={false}
+      showsCompass
+      showsTraffic
+      mapType="standard"
     >
-      <Defs>
-        <Pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <Line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,0,0,0.04)" strokeWidth="1" />
-        </Pattern>
-        <Pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <Path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.04)" strokeWidth="1" />
-        </Pattern>
-      </Defs>
-      <Rect width="400" height="800" fill="url(#grid)" />
+      {isNavigating && (
+        <Marker
+          coordinate={{ latitude: location.latitude, longitude: location.longitude }}
+          anchor={{ x: 0.5, y: 0.5 }}
+          flat
+          rotation={heading}
+          tracksViewChanges
+        >
+          <View style={styles.userMarker}>
+            <View style={styles.userPulse} />
+            <View style={styles.userDot}>
+              <MaterialIcons name="navigation" size={20} color="white" />
+            </View>
+          </View>
+        </Marker>
+      )}
 
-      <G stroke="rgba(0,0,0,0.07)" strokeWidth="0.8" fill="none">
-        <Path d="M -20 200 Q 100 180 200 220 T 420 240" />
-        <Path d="M -20 230 Q 110 210 200 250 T 420 270" />
-        <Path d="M -20 260 Q 120 240 200 280 T 420 300" />
-        <Path d="M -20 380 Q 80 360 200 410 T 420 430" />
-        <Path d="M -20 420 Q 90 410 200 460 T 420 480" />
-        <Path d="M -20 600 Q 100 580 200 620 T 420 640" />
-        <Path d="M -20 640 Q 100 620 200 660 T 420 680" />
-      </G>
-
-      <Path
-        d="M -20 720 Q 100 700 200 740 T 420 760 V 820 H -20 Z"
-        fill="url(#hatch)"
-      />
-
-      <G stroke="rgba(0,0,0,0.13)" strokeWidth="6" fill="none" strokeLinecap="round">
-        <Path d="M -20 580 Q 120 540 240 600 T 420 580" opacity={0.4} />
-        <Path d="M 380 -20 Q 320 200 220 340 T 80 600" opacity={0.4} />
-        <Path d="M -20 350 Q 160 380 280 320 T 420 340" opacity={0.3} />
-      </G>
-
-      <Path
-        d="M 70 720 Q 90 600 150 520 Q 210 440 200 360 Q 190 280 240 200 Q 290 120 360 60"
-        stroke={colors.ink}
-        strokeWidth="3.5"
-        fill="none"
-        strokeLinecap="round"
-      />
-      <Path
-        d="M 70 720 Q 90 600 150 520 Q 200 470 215 430"
-        stroke={colors.ink}
-        strokeWidth="5"
-        fill="none"
-        strokeLinecap="round"
-      />
-      <Path
-        d="M 215 430 Q 210 380 200 360 Q 190 280 240 200 Q 290 120 360 60"
-        stroke={colors.ink}
-        strokeWidth="3"
-        fill="none"
-        strokeLinecap="round"
-        strokeDasharray="2 6"
-        opacity={0.4}
-      />
-
-      {WAYPOINTS.map((wp) => (
-        <G key={wp.label}>
-          <Circle cx={wp.x} cy={wp.y} r={5} fill={colors.white} stroke={colors.ink} strokeWidth="2" />
-          <SvgText
-            x={wp.x + 10}
-            y={wp.y + 3}
-            fontSize="9"
-            fontFamily="Courier"
-            fill={colors.ink}
-            letterSpacing="1"
-          >
-            {wp.label}
-          </SvgText>
-        </G>
+      {buddies.map((buddy) => (
+        <BuddyMapMarker
+          key={buddy.id}
+          buddy={buddy}
+          distanceKm={getDistance(location.latitude, location.longitude, buddy.latitude, buddy.longitude)}
+          onPress={() => onBuddyPress(buddy)}
+          onCalloutPress={() => onCalloutPress(buddy)}
+        />
       ))}
 
-      <G transform="translate(340, 750)">
-        <Circle r="14" fill={colors.white} stroke="rgba(0,0,0,0.15)" />
-        <Path d="M 0 -8 L 3 4 L 0 1 L -3 4 Z" fill={colors.ink} />
-        <SvgText y="22" textAnchor="middle" fontSize="8" fontFamily="Courier" fill="rgba(0,0,0,0.5)">
-          N
-        </SvgText>
-      </G>
-    </Svg>
-  </View>
-));
+      {destination && (
+        <Marker coordinate={destination} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
+          <View style={styles.destinationMarker}>
+            <Ionicons name="location-sharp" size={40} color="#FF5252" />
+            <View style={styles.destinationPulse} />
+          </View>
+        </Marker>
+      )}
+
+      {trafficSegments.length > 0 ? (
+        <>
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeColor="rgba(0,0,0,0.15)"
+            strokeWidth={10}
+            lineCap="round"
+            lineJoin="round"
+          />
+          {trafficSegments.map((seg, i) =>
+            seg.coordinates.length >= 2 ? (
+              <Polyline
+                key={`traffic-${i}`}
+                coordinates={seg.coordinates}
+                strokeColor={seg.color}
+                strokeWidth={6}
+                lineCap="round"
+                lineJoin="round"
+              />
+            ) : null,
+          )}
+        </>
+      ) : routeCoordinates.length > 0 ? (
+        <Polyline
+          coordinates={routeCoordinates}
+          strokeColor={ROUTE_MODE_COLORS[routeMode]}
+          strokeWidth={6}
+          lineCap="round"
+          lineJoin="round"
+        />
+      ) : null}
+
+      {!isNavigating && buddies.map((buddy) => {
+        const dist = parseFloat(getDistance(location.latitude, location.longitude, buddy.latitude, buddy.longitude));
+        return dist < 0.5 ? (
+          <Polyline
+            key={`line-${buddy.id}`}
+            coordinates={[
+              { latitude: location.latitude, longitude: location.longitude },
+              { latitude: buddy.latitude, longitude: buddy.longitude },
+            ]}
+            strokeColor="rgba(33, 150, 243, 0.3)"
+            strokeWidth={2}
+            lineDashPattern={[5, 5]}
+          />
+        ) : null;
+      })}
+    </MapView>
+  );
+});
 
 const styles = StyleSheet.create({
   wrap: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.paper2,
+  },
+  userMarker: { alignItems: 'center', justifyContent: 'center' },
+  userPulse: {
+    position: 'absolute',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(33,150,243,0.3)',
+  },
+  userDot: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#2196F3',
+    borderWidth: 3,
+    borderColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  destinationMarker: { alignItems: 'center', justifyContent: 'center' },
+  destinationPulse: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,82,82,0.2)',
+    zIndex: -1,
   },
 });
