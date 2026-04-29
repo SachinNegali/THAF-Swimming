@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { IconArrowRight, IconCalendar, IconInfinity } from '../../icons/Icons';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { IconArrowRight, IconCalendar, IconClock, IconInfinity } from '../../icons/Icons';
 import { colors, fonts } from '../../theme';
 import { CreateTripDraft, QuickDateOption } from '../../types';
 import { Kicker } from '../core/Kicker';
@@ -36,6 +36,48 @@ const formatDate = (iso: string) => {
 };
 
 const SIZE_OPTIONS = [2, 4, 6, 8, 12];
+
+const TIME_PRESETS: { value: string; label: string }[] = [
+  { value: '05:00', label: '5:00 AM' },
+  { value: '06:00', label: '6:00 AM' },
+  { value: '07:00', label: '7:00 AM' },
+  { value: '08:00', label: '8:00 AM' },
+  { value: '09:00', label: '9:00 AM' },
+  { value: '10:00', label: '10:00 AM' },
+  { value: '12:00', label: '12:00 PM' },
+  { value: '14:00', label: '2:00 PM' },
+  { value: '16:00', label: '4:00 PM' },
+  { value: '18:00', label: '6:00 PM' },
+];
+
+const formatTime = (hhmm: string) => {
+  const [hStr, mStr] = hhmm.split(':');
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+};
+
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+const adjustTime = (hhmm: string | null, dh: number, dm: number) => {
+  const base = hhmm ?? '08:00';
+  const [hStr, mStr] = base.split(':');
+  let h = parseInt(hStr, 10);
+  let m = parseInt(mStr, 10);
+  m = m + dm;
+  while (m >= 60) {
+    m -= 60;
+    h += 1;
+  }
+  while (m < 0) {
+    m += 60;
+    h -= 1;
+  }
+  h = clamp(h + dh, 0, 23);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
 
 export const StepSchedule = React.memo(({ data, set }: StepScheduleProps) => {
   const [calOpen, setCalOpen] = useState(false);
@@ -96,6 +138,72 @@ export const StepSchedule = React.memo(({ data, set }: StepScheduleProps) => {
           </View>
           <IconArrowRight size={16} color={isCustomDate ? colors.white : colors.ink} />
         </Pressable>
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <Kicker>Departure time</Kicker>
+        <Text style={styles.sectionMeta}>
+          {data.startTime ? formatTime(data.startTime).toUpperCase() : 'NOT SET'}
+        </Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.timeRow}
+      >
+        {TIME_PRESETS.map((t) => {
+          const active = data.startTime === t.value;
+          return (
+            <Pressable
+              key={t.value}
+              onPress={() => set('startTime', t.value)}
+              style={({ pressed }) => [
+                styles.timeChip,
+                active && styles.timeChipActive,
+                { transform: [{ scale: pressed ? 0.97 : 1 }] },
+              ]}
+            >
+              <Text style={[styles.timeChipText, active && styles.timeChipTextActive]}>
+                {t.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.timeAdjustRow}>
+        <View style={styles.timeAdjustLeft}>
+          <IconClock size={16} color={colors.ink} />
+          <Text style={styles.timeAdjustLabel}>
+            {data.startTime ? formatTime(data.startTime) : 'Pick a time'}
+          </Text>
+        </View>
+        <View style={styles.timeAdjustControls}>
+          <Pressable
+            onPress={() => set('startTime', adjustTime(data.startTime, -1, 0))}
+            style={({ pressed }) => [styles.timeAdjustBtn, pressed && styles.timeAdjustBtnPressed]}
+          >
+            <Text style={styles.timeAdjustBtnText}>−1h</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => set('startTime', adjustTime(data.startTime, 0, -15))}
+            style={({ pressed }) => [styles.timeAdjustBtn, pressed && styles.timeAdjustBtnPressed]}
+          >
+            <Text style={styles.timeAdjustBtnText}>−15m</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => set('startTime', adjustTime(data.startTime, 0, 15))}
+            style={({ pressed }) => [styles.timeAdjustBtn, pressed && styles.timeAdjustBtnPressed]}
+          >
+            <Text style={styles.timeAdjustBtnText}>+15m</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => set('startTime', adjustTime(data.startTime, 1, 0))}
+            style={({ pressed }) => [styles.timeAdjustBtn, pressed && styles.timeAdjustBtnPressed]}
+          >
+            <Text style={styles.timeAdjustBtnText}>+1h</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.sectionHeader}>
@@ -230,5 +338,76 @@ const styles = StyleSheet.create({
   sizeRow: {
     flexDirection: 'row',
     gap: 6,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingRight: 22,
+  },
+  timeChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.n200,
+    backgroundColor: colors.white,
+  },
+  timeChipActive: {
+    backgroundColor: colors.ink,
+    borderColor: colors.ink,
+  },
+  timeChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.ink,
+    fontFamily: fonts.sans,
+    letterSpacing: -0.13,
+  },
+  timeChipTextActive: {
+    color: colors.white,
+  },
+  timeAdjustRow: {
+    marginTop: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: colors.n200,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timeAdjustLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timeAdjustLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.ink,
+    fontFamily: fonts.sans,
+    letterSpacing: -0.14,
+  },
+  timeAdjustControls: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  timeAdjustBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: colors.n100,
+  },
+  timeAdjustBtnPressed: {
+    backgroundColor: colors.n200,
+  },
+  timeAdjustBtnText: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.ink,
+    letterSpacing: 0.4,
+    fontWeight: '600',
   },
 });

@@ -1,9 +1,10 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { IconPlus } from '../../icons/Icons';
 import { colors, fonts } from '../../theme';
-import { CreateTripDraft } from '../../types';
+import { CreateTripDraft, TripPlace } from '../../types';
 import { Kicker } from '../core/Kicker';
-import { InputRow } from './InputRow';
+import { PlaceInput } from './PlaceInput';
 import { RouteSketch } from './RouteSketch';
 
 interface StepRouteProps {
@@ -11,14 +12,27 @@ interface StepRouteProps {
   set: <K extends keyof CreateTripDraft>(key: K, value: CreateTripDraft[K]) => void;
 }
 
-const SUGGESTIONS = ['Mumbai → Goa', 'Pune → Mahabaleshwar', 'Bangalore → Coorg', 'Delhi → Manali'];
-
 export const StepRoute = React.memo(({ data, set }: StepRouteProps) => {
-  const handleSuggest = (route: string) => {
-    const [f, t] = route.split(' → ');
-    set('from', f);
-    set('to', t);
+  const handleAddStop = () => {
+    set('stops', [...data.stops, { name: '', type: 'city', coordinates: { lat: 0, lng: 0 } }]);
   };
+
+  const handleStopChange = (index: number, place: TripPlace | null) => {
+    const next = [...data.stops];
+    if (place === null) {
+      next[index] = { name: '', type: 'city', coordinates: { lat: 0, lng: 0 } };
+    } else {
+      next[index] = place;
+    }
+    set('stops', next);
+  };
+
+  const handleStopRemove = (index: number) => {
+    set('stops', data.stops.filter((_, i) => i !== index));
+  };
+
+  const fromName = data.from?.name ?? '';
+  const toName = data.to?.name ?? '';
 
   return (
     <View>
@@ -28,27 +42,50 @@ export const StepRoute = React.memo(({ data, set }: StepRouteProps) => {
           <Text style={styles.titleItalic}>heading?</Text>
         </Text>
         <Text style={styles.subtitle}>
-          Pick origin and destination. Add a title if you like.
+          Pick origin and destination. Add stops along the way.
         </Text>
       </View>
 
       <View style={styles.inputCard}>
-        <InputRow
+        <PlaceInput
           label="FROM"
           icon={<View style={styles.dotOutline} />}
           value={data.from}
-          onChange={(v) => set('from', v)}
+          onSelect={(p) => set('from', p)}
           placeholder="Starting city"
         />
+
+        {data.stops.map((stop, i) => (
+          <View key={`stop-${i}`}>
+            <View style={styles.divider} />
+            <PlaceInput
+              label={`STOP ${i + 1}`}
+              icon={<View style={styles.dotStop} />}
+              value={stop.name ? stop : null}
+              onSelect={(p) => handleStopChange(i, p)}
+              onRemove={() => handleStopRemove(i)}
+              placeholder="Add a waypoint"
+            />
+          </View>
+        ))}
+
         <View style={styles.divider} />
-        <InputRow
+        <PlaceInput
           label="TO"
           icon={<View style={styles.dotFilled} />}
           value={data.to}
-          onChange={(v) => set('to', v)}
+          onSelect={(p) => set('to', p)}
           placeholder="Destination"
         />
       </View>
+
+      <Pressable
+        onPress={handleAddStop}
+        style={({ pressed }) => [styles.addStopBtn, pressed && styles.addStopBtnPressed]}
+      >
+        <IconPlus size={14} color={colors.ink} />
+        <Text style={styles.addStopText}>Add stop</Text>
+      </Pressable>
 
       <TextInput
         value={data.title}
@@ -58,27 +95,28 @@ export const StepRoute = React.memo(({ data, set }: StepRouteProps) => {
         style={styles.titleInput}
       />
 
-      <View style={styles.suggestSection}>
-        <Kicker style={styles.kicker}>Suggested near you</Kicker>
-        <View style={styles.suggestRow}>
-          {SUGGESTIONS.map((r) => (
-            <Pressable key={r} onPress={() => handleSuggest(r)} style={styles.suggestBtn}>
-              <Text style={styles.suggestText}>{r}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
+      <TextInput
+        value={data.description}
+        onChangeText={(v) => set('description', v)}
+        placeholder="Describe your trip — pace, terrain, vibe…"
+        placeholderTextColor={colors.n400}
+        style={styles.descriptionInput}
+        multiline
+        numberOfLines={4}
+        textAlignVertical="top"
+      />
 
-      {data.from !== '' && data.to !== '' && (
+      {fromName !== '' && toName !== '' && (
         <View style={styles.previewSection}>
           <View style={styles.previewHeader}>
             <Kicker>Route sketch</Kicker>
-            <Kicker style={styles.kickerMuted}>No maps API</Kicker>
+            <Kicker style={styles.kickerMuted}>
+              {data.stops.filter((s) => s.name).length > 0
+                ? `${data.stops.filter((s) => s.name).length} stop(s)`
+                : 'Direct'}
+            </Kicker>
           </View>
-          <RouteSketch from={data.from} to={data.to} />
-          <Text style={styles.previewCaption}>
-            Rendered from stored coordinates — no Maps billing. Full navigation opens on the Maps tab during the ride.
-          </Text>
+          <RouteSketch from={fromName} to={toName} />
         </View>
       )}
     </View>
@@ -135,6 +173,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink,
     borderRadius: 4,
   },
+  dotStop: {
+    width: 6,
+    height: 6,
+    backgroundColor: colors.n400,
+    borderRadius: 3,
+  },
+  addStopBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.n200,
+    backgroundColor: colors.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  addStopBtnPressed: {
+    backgroundColor: colors.n100,
+  },
+  addStopText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.ink,
+    fontFamily: fonts.sans,
+  },
   titleInput: {
     width: '100%',
     paddingVertical: 14,
@@ -149,33 +215,24 @@ const styles = StyleSheet.create({
     letterSpacing: -0.15,
     marginTop: 16,
   },
-  suggestSection: {
-    marginTop: 22,
-  },
-  kicker: {
-    marginBottom: 10,
+  descriptionInput: {
+    width: '100%',
+    minHeight: 96,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.n200,
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.ink,
+    letterSpacing: -0.14,
+    marginTop: 10,
   },
   kickerMuted: {
     color: colors.n400,
-  },
-  suggestRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  suggestBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.n200,
-    backgroundColor: colors.white,
-  },
-  suggestText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.ink,
-    fontFamily: fonts.sans,
   },
   previewSection: {
     marginTop: 22,
@@ -185,12 +242,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'baseline',
     marginBottom: 10,
-  },
-  previewCaption: {
-    fontSize: 11,
-    color: colors.n500,
-    marginTop: 8,
-    lineHeight: 16.5,
-    fontFamily: fonts.sans,
   },
 });

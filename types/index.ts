@@ -85,11 +85,19 @@ export interface TripDetails {
 
 
 // Create Trip flow
+export interface TripPlace {
+  coordinates: { lat: number; lng: number };
+  type: string;
+  name: string;
+}
+
 export interface CreateTripDraft {
   title: string;
-  from: string;
-  to: string;
+  from: TripPlace | null;
+  to: TripPlace | null;
+  stops: TripPlace[];
   startDate: string | null; // ISO 'YYYY-MM-DD'
+  startTime: string | null; // 'HH:mm' (24h)
   days: number;
   spots: number | null;     // null = open / unlimited
   description: string;

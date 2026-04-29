@@ -14,14 +14,26 @@ interface StepReviewProps {
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+const formatTime = (hhmm: string) => {
+  const [hStr, mStr] = hhmm.split(':');
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+};
+
 export const StepReview = React.memo(({ data, set }: StepReviewProps) => {
   const startDate = data.startDate ? new Date(data.startDate) : null;
   const dateValue = startDate ? String(startDate.getDate()) : '—';
   const dateLabel = startDate ? MONTHS_SHORT[startDate.getMonth()].toLowerCase() : 'date';
-  const fromLabel = data.from || 'Origin';
-  const toLabel = data.to || 'Destination';
+  const fromLabel = data.from?.name || 'Origin';
+  const toLabel = data.to?.name || 'Destination';
+  const namedStops = data.stops.filter((s) => s.name);
+  const routeLine = [fromLabel, ...namedStops.map((s) => s.name), toLabel].join(' → ');
   const titleLabel = data.title || `${fromLabel} → ${toLabel}`;
   const spotsValue = data.spots === null ? '∞' : `0/${data.spots}`;
+  const timeLabel = data.startTime ? formatTime(data.startTime) : null;
 
   return (
     <View>
@@ -36,9 +48,15 @@ export const StepReview = React.memo(({ data, set }: StepReviewProps) => {
         <RouteSketch from={fromLabel} to={toLabel} />
         <View style={styles.previewBody}>
           <Text style={styles.previewTitle}>{titleLabel}</Text>
-          <Text style={styles.previewRoute}>
-            {fromLabel} → {toLabel}
-          </Text>
+          <Text style={styles.previewRoute}>{routeLine}</Text>
+          {timeLabel && (
+            <Text style={styles.previewRoute}>Departs · {timeLabel}</Text>
+          )}
+          {data.description ? (
+            <Text style={styles.previewDescription} numberOfLines={3}>
+              {data.description}
+            </Text>
+          ) : null}
           <View style={styles.metrics}>
             <Metric value={dateValue} label={dateLabel} />
             <Metric value={data.days} label={data.days === 1 ? 'day' : 'days'} />
@@ -113,6 +131,14 @@ const styles = StyleSheet.create({
     color: colors.n500,
     letterSpacing: 0.44,
     marginTop: 4,
+  },
+  previewDescription: {
+    marginTop: 10,
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.n700,
+    letterSpacing: -0.13,
   },
   metrics: {
     flexDirection: 'row',
