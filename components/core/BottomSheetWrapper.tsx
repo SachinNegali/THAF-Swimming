@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, ViewStyle } from 'react-native';
 import { colors } from '../../theme';
 
-interface BottomSheetProps extends Omit<BottomSheetModalProps, 'ref' | 'snapPoints'> {
+interface BottomSheetProps extends Omit<BottomSheetModalProps, 'ref' | 'snapPoints' | 'index'> {
   visible: boolean;
   onClose: () => void;
   snapPoints: string[];
@@ -22,6 +22,10 @@ interface BottomSheetProps extends Omit<BottomSheetModalProps, 'ref' | 'snapPoin
   handleIndicatorStyle?: ViewStyle;
   /** Sheet background style */
   backgroundStyle?: ViewStyle;
+  /** Active snap index. Updates programmatically snap to that index. */
+  index?: number;
+  /** Hide the dimmed backdrop (useful for persistent sheets that don't block the map) */
+  withBackdrop?: boolean;
 }
 
 export const BottomSheet: React.FC<BottomSheetProps> = ({
@@ -34,10 +38,12 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   enablePanDownToClose = true,
   handleIndicatorStyle,
   backgroundStyle,
+  index,
+  withBackdrop = true,
   ...rest
 }) => {
   const sheetRef = useRef<BottomSheetModal>(null);
-  
+
   // Sync visible prop with internal sheet state
   useEffect(() => {
     if (visible) {
@@ -46,6 +52,13 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       sheetRef.current?.dismiss();
     }
   }, [visible]);
+
+  // Snap to a specific index when it changes
+  useEffect(() => {
+    if (visible && typeof index === 'number') {
+      sheetRef.current?.snapToIndex(index);
+    }
+  }, [index, visible]);
 
   // Handle dismiss events (swipe, backdrop, button)
   const handleDismiss = useCallback(() => {
@@ -71,7 +84,8 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     <BottomSheetModal
       ref={sheetRef}
       snapPoints={snapPoints}
-      backdropComponent={renderBackdrop}
+      index={index}
+      backdropComponent={withBackdrop ? renderBackdrop : undefined}
       enablePanDownToClose={enablePanDownToClose}
       onDismiss={handleDismiss}
       enableDynamicSizing={false}

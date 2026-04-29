@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { IconArrowRight } from '../../icons/Icons';
 import { colors, fonts } from '../../theme';
 import { Buddy, BuddySheetState, QuickMessage } from '../../types';
 import { Avatar } from '../core/Avatar';
+import { BottomSheet } from '../core/BottomSheetWrapper';
 import { Kicker } from '../core/Kicker';
 import { BuddyRow } from './BuddyRow';
 import { QuickMessages } from './QuickMessages';
@@ -17,6 +18,7 @@ interface BuddySheetProps {
 }
 
 const SOS_COLOR = '#B8463F';
+const SNAP_POINTS = ['18%', '62%'];
 
 export const BuddySheet = React.memo(({ state, buddies, quickMsgs, onToggle, onQuickSend }: BuddySheetProps) => {
   const expanded = state === 'expanded';
@@ -24,98 +26,87 @@ export const BuddySheet = React.memo(({ state, buddies, quickMsgs, onToggle, onQ
   const liveCount = buddies.filter((b) => b.status === 'live').length;
   const stoppedCount = buddies.filter((b) => b.status === 'stopped').length;
 
+  // Persistent sheet — no dismiss; ignore close events
+  const handleClose = useCallback(() => {}, []);
+
   return (
-    <View style={styles.sheet}>
-      <Pressable onPress={onToggle} style={styles.handleArea}>
-        <View style={styles.handle} />
-      </Pressable>
+    <BottomSheet
+      visible
+      onClose={handleClose}
+      snapPoints={SNAP_POINTS}
+      index={expanded ? 1 : 0}
+      enablePanDownToClose={false}
+      withBackdrop={false}
+      onChange={(i) => {
+        if (i === 0 && expanded) onToggle();
+        if (i === 1 && !expanded) onToggle();
+      }}
+    >
+      <View style={styles.content}>
+        <QuickMessages messages={quickMsgs} onSend={onQuickSend} />
 
-      <QuickMessages messages={quickMsgs} onSend={onQuickSend} />
-
-      {expanded ? (
-        <View style={styles.expanded}>
-          <View style={styles.expandedHeader}>
-            <Kicker>Pack · {buddies.length}</Kicker>
-            <Pressable onPress={onToggle}>
-              <Text style={styles.hideText}>Hide</Text>
-            </Pressable>
-          </View>
-          <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-            {buddies.map((b) => (
-              <BuddyRow key={b.id} buddy={b} />
-            ))}
-          </ScrollView>
-        </View>
-      ) : (
-        <Pressable onPress={onToggle} style={styles.collapsed}>
-          <View style={styles.summaryLeft}>
-            <View style={styles.avatarStack}>
-              {buddies.slice(0, 4).map((b, i) => (
-                <View
-                  key={b.id}
-                  style={[styles.stackedAvatar, { marginLeft: i === 0 ? 0 : -10 }]}
-                >
-                  <Avatar name={b.name} size={28} tone={b.tone} />
-                </View>
+        {expanded ? (
+          <View style={styles.expanded}>
+            <View style={styles.expandedHeader}>
+              <Kicker>Pack · {buddies.length}</Kicker>
+              <Pressable onPress={onToggle}>
+                <Text style={styles.hideText}>Hide</Text>
+              </Pressable>
+            </View>
+            <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+              {buddies.map((b) => (
+                <BuddyRow key={b.id} buddy={b} />
               ))}
-            </View>
-            <View style={styles.summaryText}>
-              <Text style={styles.summaryLine}>
-                {lostCount > 0 && (
-                  <Text style={styles.summaryLost}>
-                    {lostCount} lost signal{lostCount === 1 ? '' : 's'}
+            </ScrollView>
+          </View>
+        ) : (
+          <Pressable onPress={onToggle} style={styles.collapsed}>
+            <View style={styles.summaryLeft}>
+              <View style={styles.avatarStack}>
+                {buddies.slice(0, 4).map((b, i) => (
+                  <View
+                    key={b.id}
+                    style={[styles.stackedAvatar, { marginLeft: i === 0 ? 0 : -10 }]}
+                  >
+                    <Avatar name={b.name} size={28} tone={b.tone} />
+                  </View>
+                ))}
+              </View>
+              <View style={styles.summaryText}>
+                <Text style={styles.summaryLine}>
+                  {lostCount > 0 && (
+                    <Text style={styles.summaryLost}>
+                      {lostCount} lost signal{lostCount === 1 ? '' : 's'}
+                    </Text>
+                  )}
+                  <Text style={styles.summaryRest}>
+                    {lostCount > 0 ? ' · ' : ''}
+                    {liveCount} live · {stoppedCount} stopped
                   </Text>
-                )}
-                <Text style={styles.summaryRest}>
-                  {lostCount > 0 ? ' · ' : ''}
-                  {liveCount} live · {stoppedCount} stopped
                 </Text>
-              </Text>
-              <Text style={styles.tapHint}>Tap to expand</Text>
+                <Text style={styles.tapHint}>Tap to expand</Text>
+              </View>
             </View>
-          </View>
-          <View style={styles.summaryRight}>
-            <View style={styles.rotateIcon}>
-              <IconArrowRight size={14} color={colors.n600} />
+            <View style={styles.summaryRight}>
+              <View style={styles.rotateIcon}>
+                <IconArrowRight size={14} color={colors.n600} />
+              </View>
             </View>
-          </View>
-        </Pressable>
-      )}
-    </View>
+          </Pressable>
+        )}
+      </View>
+    </BottomSheet>
   );
 });
 
 const styles = StyleSheet.create({
-  sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 25,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    backgroundColor: colors.paper,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 32,
-    elevation: 12,
-  },
-  handleArea: {
-    paddingTop: 10,
-    paddingBottom: 6,
-    alignItems: 'center',
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.n300,
+  content: {
+    flex: 1,
   },
   expanded: {
     paddingHorizontal: 16,
     paddingBottom: 22,
-    maxHeight: 460,
+    flex: 1,
   },
   expandedHeader: {
     flexDirection: 'row',
@@ -133,7 +124,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   list: {
-    flexGrow: 0,
+    flex: 1,
   },
   listContent: {
     paddingBottom: 4,

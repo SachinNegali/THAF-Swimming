@@ -19,7 +19,7 @@ import {
     IconShare,
     IconX,
 } from '../icons/Icons';
-// import { BroadcastSheet } from '../components/organisms/BroadcastSheet';
+import { BroadcastSheet } from '../components/tripDetails/BroadcastSheet';
 
 interface DetailsScreenProps {
   ride?: TripDetails;
@@ -162,12 +162,12 @@ const DetailsScreen = React.memo(({ ride, onBack, onStartRide }: DetailsScreenPr
         )}
       </View>
 
-      {/* <BroadcastSheet
+      <BroadcastSheet
         visible={broadcastOpen}
         members={DEMO_MEMBERS.filter(m => m.role !== 'Organizer').map(m => m.name)}
         onCancel={() => setBroadcastOpen(false)}
         onConfirm={() => { setBroadcastOpen(false); onStartRide?.(); }}
-      /> */}
+      />
     </SafeAreaView>
   );
 });

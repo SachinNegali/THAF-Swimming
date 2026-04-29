@@ -6,9 +6,9 @@ import { FilterState, SearchRide } from '../types';
 // import { StatusBar } from '../components/core/StatusBar';
 import { Kicker } from '../components/core/Kicker';
 import { Pill } from '../components/core/Pill';
+import { FilterSheet } from '../components/search/FilterSheet';
 import { SearchResult } from '../components/search/SearchResult';
 import { IconBack, IconBookmark, IconSearch, IconSliders, IconX } from '../icons/Icons';
-// import { FilterSheet } from '../components/search/FilterSheet';
 
 interface SearchScreenProps {
   onOpenRide: (ride: SearchRide) => void;
@@ -120,12 +120,12 @@ const SearchScreen = React.memo(({ onOpenRide, onBack }: SearchScreenProps) => {
       </Pressable>
 
       {/* Filter Sheet */}
-      {/* <FilterSheet
+      <FilterSheet
         visible={sheetOpen}
         filters={filters}
         onApply={(f) => { setFilters(f); setSheetOpen(false); }}
         onClose={() => setSheetOpen(false)}
-      /> */}
+      />
     </SafeAreaView>
   );
 });
