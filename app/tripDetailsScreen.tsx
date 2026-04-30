@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { DEMO_MEMBERS, DEMO_QA, DEMO_REQUESTS, DEMO_TRIP } from '../data/demoData';
 import { colors, fonts } from '../theme';
@@ -20,40 +22,216 @@ import {
     IconX,
 } from '../icons/Icons';
 import { BroadcastSheet } from '../components/tripDetails/BroadcastSheet';
+import { RequestToJoinSheet } from '../components/tripDetails/RequestToJoinSheet';
+import { notify } from '../components/tripDetails/helpers';
+import {
+  useAddTripParticipants,
+  useRemoveTripParticipant,
+  useRequestToJoinTrip,
+  useTripJoinRequests,
+} from '@/hooks/api/useTrips';
+import { useAppSelector } from '@/store/hooks';
 
 interface DetailsScreenProps {
   ride?: TripDetails;
-  onBack: () => void;
+  onBack?: () => void;
   onStartRide?: () => void;
 }
 
 type TabId = 'overview' | 'members' | 'requests' | 'qa';
 
-const TABS: { id: TabId; label: (r: TripDetails) => string }[] = [
-  { id: 'overview', label: () => 'Overview' },
-  { id: 'members', label: (r) => `Members · ${r.filled}/${r.total}` },
-  { id: 'requests', label: () => `Requests · ${DEMO_REQUESTS.length}` },
-  { id: 'qa', label: () => 'Q&A' },
-];
+const formatShortDate = (iso?: string) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+};
 
 const DetailsScreen = React.memo(({ ride, onBack, onStartRide }: DetailsScreenProps) => {
+  const router = useRouter();
+  const { trip: tripParam } = useLocalSearchParams<{ trip?: string }>();
+
+  const trip: any = useMemo(() => {
+    if (!tripParam) return null;
+    try {
+      return typeof tripParam === 'string' ? JSON.parse(tripParam) : tripParam;
+    } catch {
+      return null;
+    }
+  }, [tripParam]);
+
+  const tripId = trip?._id ?? trip?.id ?? '';
+
+  const currentUser = useAppSelector((state) => state.auth.user);
+  const currentUserId = currentUser?._id ?? currentUser?.userId ?? null;
+
+  const creatorId = typeof trip?.createdBy === 'object' && trip?.createdBy !== null
+    ? trip.createdBy._id
+    : (typeof trip?.creator === 'object' && trip?.creator !== null
+        ? trip.creator._id
+        : (trip?.createdBy ?? trip?.creator));
+  const isOrganizer = !!creatorId && !!currentUserId && creatorId === currentUserId;
+
+  const participants: any[] = Array.isArray(trip?.participants) ? trip.participants : [];
+  const isParticipant = !!currentUserId && participants.some((p: any) => {
+    const uid = typeof p?.user === 'object' ? p.user?._id : p?.user;
+    return uid === currentUserId;
+  });
+
+  const requestToJoin = useRequestToJoinTrip();
+  const addParticipants = useAddTripParticipants();
+  const removeParticipant = useRemoveTripParticipant();
+
+  const { data: joinRequestsApi = [], isLoading: isLoadingRequests } = useTripJoinRequests(
+    tripId,
+    isOrganizer && !!tripId,
+  );
+
   const [tab, setTab] = useState<TabId>('overview');
   const [broadcastOpen, setBroadcastOpen] = useState(false);
-  const isOrganizer = true;
+  const [requestSheetOpen, setRequestSheetOpen] = useState(false);
+  const [hasRequested, setHasRequested] = useState(false);
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
 
-  const r = ride || DEMO_TRIP;
+  const handleBack = onBack ?? (() => router.back());
+
+  const handleRequestSubmit = (message: string) => {
+    if (!tripId) return;
+    requestToJoin.mutate(
+      { tripId, message },
+      {
+        onSuccess: () => {
+          setHasRequested(true);
+          setRequestSheetOpen(false);
+          notify('Join request sent');
+        },
+        onError: (err: Error) => {
+          const msg = err.message || 'Failed to send join request';
+          if (msg.toLowerCase().includes('already exists')) {
+            setHasRequested(true);
+            setRequestSheetOpen(false);
+          }
+          notify(msg);
+        },
+      },
+    );
+  };
+
+  const handleAcceptRequest = (userId: string) => {
+    if (!tripId || busyUserId) return;
+    setBusyUserId(userId);
+    addParticipants.mutate(
+      { tripId, data: { participantIds: [userId] } },
+      {
+        onSuccess: () => notify('Request approved'),
+        onError: (err: Error) => notify(err.message || 'Failed to add participant'),
+        onSettled: () => setBusyUserId(null),
+      },
+    );
+  };
+
+  const handleDeclineRequest = (userId: string) => {
+    if (!tripId || busyUserId) return;
+    setBusyUserId(userId);
+    removeParticipant.mutate(
+      { tripId, userId },
+      {
+        onSuccess: () => notify('Request declined'),
+        onError: (err: Error) => notify(err.message || 'Failed to decline request'),
+        onSettled: () => setBusyUserId(null),
+      },
+    );
+  };
+
+  // Map API trip → UI fields. Falls back to ride prop / DEMO_TRIP for legacy embed usage.
+  const fallback = ride || DEMO_TRIP;
+  const r = useMemo<TripDetails>(() => {
+    if (!trip) return fallback;
+    const filled = participants.length;
+    const total = typeof trip.spots === 'number' && trip.spots > 0 ? trip.spots : filled;
+    const organizerName = typeof trip.createdBy === 'object'
+      ? `${trip.createdBy?.fName ?? ''} ${trip.createdBy?.lName ?? ''}`.trim() || (trip.createdBy?.email ?? '—')
+      : (fallback.organizer ?? '—');
+    return {
+      id: trip._id ?? trip.id ?? fallback.id,
+      title: trip.title ?? fallback.title,
+      region: trip.startLocation?.name ?? fallback.region,
+      from: trip.startLocation?.name ?? fallback.from,
+      to: trip.destination?.name ?? fallback.to,
+      dist: trip.distance ? `${trip.distance} km` : fallback.dist,
+      days: trip.days ?? fallback.days,
+      level: fallback.level, // [TODO API: difficulty/level not in payload]
+      start: formatShortDate(trip.startDate) ?? fallback.start,
+      end: formatShortDate(trip.endDate) ?? fallback.end,
+      spots: typeof trip.spots === 'number' ? Math.max(0, total - filled) : fallback.spots,
+      total,
+      filled,
+      organizer: organizerName,
+      description: trip.description ?? fallback.description,
+    };
+  }, [trip, participants.length, fallback]);
+
+  const elevationLabel = trip?.elevation ? `${trip.elevation}` : '4,350';
+  const distanceValue = trip?.distance ? `${trip.distance}` : (r.dist?.replace(/[^\d]/g, '') || '—');
+  const titleParts = (r.title ?? '').split(' ');
+  const titleLead = titleParts.length > 1 ? `${titleParts.slice(0, -1).join(' ')} ` : r.title;
+  const titleTail = titleParts.length > 1 ? titleParts[titleParts.length - 1] : '';
+
+  // Build members list from participants (organizer + joined). [TODO API: handle/role per member not in payload]
+  const members: Member[] = useMemo(() => {
+    if (!trip) return DEMO_MEMBERS;
+    const list: Member[] = [];
+    const seen = new Set<string>();
+    if (typeof trip.createdBy === 'object' && trip.createdBy?._id) {
+      const u = trip.createdBy;
+      list.push({
+        name: `${u.fName ?? ''} ${u.lName ?? ''}`.trim() || u.email,
+        handle: u.email ?? '—',
+        role: 'Organizer',
+        tone: 0,
+      });
+      seen.add(u._id);
+    }
+    participants.forEach((p: any, i: number) => {
+      const u = typeof p?.user === 'object' ? p.user : null;
+      const uid = u?._id ?? p?.user;
+      if (!u || !uid || seen.has(uid)) return;
+      seen.add(uid);
+      list.push({
+        name: `${u.fName ?? ''} ${u.lName ?? ''}`.trim() || u.email,
+        handle: u.email ?? '—',
+        tone: (i + 1) % 4,
+      });
+    });
+    return list.length ? list : [];
+  }, [trip, participants]);
+
+  const TABS: { id: TabId; label: () => string }[] = useMemo(() => [
+    { id: 'overview', label: () => 'Overview' },
+    { id: 'members', label: () => `Members · ${members.length}/${r.total || members.length}` },
+    { id: 'requests', label: () => `Requests · ${joinRequestsApi.length}` },
+    { id: 'qa', label: () => 'Q&A' },
+  ], [members.length, r.total, joinRequestsApi.length]);
+
+  if (!trip) {
+    return (
+      <SafeAreaView style={[styles.screen, styles.center]}>
+        <ActivityIndicator color={colors.ink} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
       {/* <StatusBar /> */}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
+
         {/* Header Nav */}
         <View style={styles.headerNav}>
-          <Pressable onPress={onBack} style={styles.iconBtn}>
+          <Pressable onPress={handleBack} style={styles.iconBtn}>
             <IconBack size={18} color={colors.ink} />
           </Pressable>
-          <Kicker>Trip · TRP-2451</Kicker>
+          <Kicker>Trip · {(r.id ?? '').slice(-6).toUpperCase() || 'TRP'}</Kicker>
           <View style={styles.headerActions}>
             <Pressable style={styles.iconBtn}>
               <IconBookmark size={15} color={colors.ink} />
@@ -89,27 +267,27 @@ const DetailsScreen = React.memo(({ ride, onBack, onStartRide }: DetailsScreenPr
               <Circle cx="360" cy="50" r="5" fill={colors.amber} />
             </Svg>
             <View style={styles.difficultyBadge}>
-              <Text style={styles.difficultyText}>Technical</Text>
+              <Text style={styles.difficultyText}>{r.level}</Text>
             </View>
           </View>
         </View>
 
         {/* Title */}
         <View style={styles.titleSection}>
-          <Kicker>LADAKH · INDIA · 34.15°N 77.57°E</Kicker>
+          <Kicker>{r.region?.toUpperCase() ?? '—'}</Kicker>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Leh to </Text>
-            <Text style={styles.titleItalic}>Pangong Tso</Text>
+            <Text style={styles.title}>{titleLead}</Text>
+            {!!titleTail && <Text style={styles.titleItalic}>{titleTail}</Text>}
           </View>
         </View>
 
         {/* Metrics */}
         <View style={styles.metricsSection}>
           <View style={styles.metricsCard}>
-            <Metric value="223" label="km" />
-            <Metric value="3" label="days" />
-            <Metric value="4,350" label="elev m" />
-            <Metric value="2/8" label="spots" />
+            <Metric value={distanceValue} label="km" />
+            <Metric value={String(r.days ?? '—')} label="days" />
+            <Metric value={elevationLabel} label="elev m" />
+            <Metric value={`${r.spots ?? 0}/${r.total ?? 0}`} label="spots" />
           </View>
         </View>
 
@@ -119,9 +297,10 @@ const DetailsScreen = React.memo(({ ride, onBack, onStartRide }: DetailsScreenPr
             <View style={styles.tabs}>
               {TABS.map(t => {
                 const active = tab === t.id;
+                if (t.id === 'requests' && !isOrganizer) return null;
                 return (
                   <Pressable key={t.id} onPress={() => setTab(t.id)} style={styles.tab}>
-                    <Text style={[styles.tabText, active && styles.tabTextActive]}>{t.label(r)}</Text>
+                    <Text style={[styles.tabText, active && styles.tabTextActive]}>{t.label()}</Text>
                     {active && <View style={styles.tabIndicator} />}
                   </Pressable>
                 );
@@ -133,8 +312,16 @@ const DetailsScreen = React.memo(({ ride, onBack, onStartRide }: DetailsScreenPr
         {/* Tab Content */}
         <View style={styles.tabContent} key={tab}>
           {tab === 'overview' && <OverviewTab r={r} />}
-          {tab === 'members' && <MembersTab members={DEMO_MEMBERS} total={r.total} />}
-          {tab === 'requests' && <RequestsTab requests={DEMO_REQUESTS} isOrganizer={isOrganizer} />}
+          {tab === 'members' && <MembersTab members={members} total={r.total} />}
+          {tab === 'requests' && isOrganizer && (
+            <RequestsTab
+              requests={joinRequestsApi}
+              isLoading={isLoadingRequests}
+              busyUserId={busyUserId}
+              onAccept={handleAcceptRequest}
+              onDecline={handleDeclineRequest}
+            />
+          )}
           {tab === 'qa' && <QATab />}
         </View>
       </ScrollView>
@@ -152,21 +339,41 @@ const DetailsScreen = React.memo(({ ride, onBack, onStartRide }: DetailsScreenPr
           >
             Start ride
           </PrimaryButton>
-        ) : (
+        ) : isParticipant ? (
           <PrimaryButton
-            icon={<IconArrowRight size={16} color={colors.white} />}
+            icon={<IconCheck size={16} color={colors.white} />}
             style={styles.ctaBtn}
           >
-            Request to join
+            Joined
+          </PrimaryButton>
+        ) : (
+          <PrimaryButton
+            onPress={() => !hasRequested && !requestToJoin.isPending && setRequestSheetOpen(true)}
+            icon={
+              requestToJoin.isPending
+                ? <ActivityIndicator size="small" color={colors.white} style={{ marginLeft: 8 }} />
+                : <IconArrowRight size={16} color={colors.white} />
+            }
+            style={styles.ctaBtn}
+          >
+            {hasRequested ? 'Requested' : 'Request to Join'}
           </PrimaryButton>
         )}
       </View>
 
       <BroadcastSheet
         visible={broadcastOpen}
-        members={DEMO_MEMBERS.filter(m => m.role !== 'Organizer').map(m => m.name)}
+        members={members.filter(m => m.role !== 'Organizer').map(m => m.name)}
         onCancel={() => setBroadcastOpen(false)}
         onConfirm={() => { setBroadcastOpen(false); onStartRide?.(); }}
+      />
+
+      <RequestToJoinSheet
+        visible={requestSheetOpen}
+        tripTitle={r.title}
+        isSubmitting={requestToJoin.isPending}
+        onCancel={() => !requestToJoin.isPending && setRequestSheetOpen(false)}
+        onSubmit={handleRequestSubmit}
       />
     </SafeAreaView>
   );
@@ -263,53 +470,96 @@ function MembersTab({ members, total }: { members: Member[]; total: number }) {
   );
 }
 
-function RequestsTab({ requests, isOrganizer }: { requests: JoinRequest[]; isOrganizer: boolean }) {
-  const [processed, setProcessed] = useState<Record<number, 'approved' | 'declined'>>({});
+interface ApiJoinRequest {
+  _id: string;
+  user: { _id: string; fName?: string; lName?: string; email?: string };
+  requestedAt: string;
+  message?: string;
+}
+
+function RequestsTab({
+  requests,
+  isLoading,
+  busyUserId,
+  onAccept,
+  onDecline,
+}: {
+  requests: ApiJoinRequest[];
+  isLoading: boolean;
+  busyUserId: string | null;
+  onAccept: (userId: string) => void;
+  onDecline: (userId: string) => void;
+}) {
+  if (isLoading && requests.length === 0) {
+    return (
+      <View style={styles.requestsTab}>
+        <ActivityIndicator color={colors.ink} />
+      </View>
+    );
+  }
+
+  if (requests.length === 0) {
+    return (
+      <View style={styles.requestsTab}>
+        <View style={styles.requestsHeader}>
+          <View>
+            <Text style={styles.requestsCount}>0 pending</Text>
+            <Text style={styles.requestsSub}>Nothing to review</Text>
+          </View>
+          <View style={styles.liveDot} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.requestsTab}>
       <View style={styles.requestsHeader}>
         <View>
           <Text style={styles.requestsCount}>{requests.length} pending</Text>
-          <Text style={styles.requestsSub}>
-            {isOrganizer ? 'You can approve or decline' : 'Organizer reviews requests'}
-          </Text>
+          <Text style={styles.requestsSub}>You can approve or decline</Text>
         </View>
         <View style={styles.liveDot} />
       </View>
 
       <View style={styles.requestsList}>
         {requests.map((q, i) => {
-          const state = processed[i];
+          const userId = q.user?._id;
+          const fullName = `${q.user?.fName ?? ''} ${q.user?.lName ?? ''}`.trim() || (q.user?.email ?? 'User');
+          const isBusy = busyUserId === userId;
           return (
-            <View key={i} style={[styles.requestCard, state && styles.requestCardProcessed]}>
-              <Avatar name={q.name} size={38} tone={q.tone} />
+            <View key={q._id ?? i} style={styles.requestCard}>
+              <Avatar name={fullName} size={38} tone={i % 4} />
               <View style={styles.requestContent}>
                 <View style={styles.requestTop}>
-                  <Text style={styles.requestName} numberOfLines={1}>{q.name}</Text>
-                  <Text style={styles.requestWhen}>{q.when}</Text>
+                  <Text style={styles.requestName} numberOfLines={1}>{fullName}</Text>
+                  <Text style={styles.requestWhen}>{relativeShort(q.requestedAt)}</Text>
                 </View>
-                <Text style={styles.requestHandle}>{q.handle}</Text>
-                {q.note && <Text style={styles.requestNote}>“{q.note}”</Text>}
-                
-                {isOrganizer && !state && (
-                  <View style={styles.requestActions}>
-                    <Pressable onPress={() => setProcessed(p => ({ ...p, [i]: 'declined' }))} style={styles.declineBtn}>
-                      <IconX size={13} color={colors.ink} />
-                      <Text style={styles.actionText}>Decline</Text>
-                    </Pressable>
-                    <Pressable onPress={() => setProcessed(p => ({ ...p, [i]: 'approved' }))} style={styles.approveBtn}>
+                <Text style={styles.requestHandle}>{q.user?.email ?? '—'}</Text>
+                {q.message ? <Text style={styles.requestNote}>“{q.message}”</Text> : null}
+
+                <View style={styles.requestActions}>
+                  <Pressable
+                    onPress={() => userId && onDecline(userId)}
+                    disabled={isBusy || !userId}
+                    style={[styles.declineBtn, isBusy && { opacity: 0.5 }]}
+                  >
+                    <IconX size={13} color={colors.ink} />
+                    <Text style={styles.actionText}>Decline</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => userId && onAccept(userId)}
+                    disabled={isBusy || !userId}
+                    style={[styles.approveBtn, isBusy && { opacity: 0.5 }]}
+                  >
+                    {isBusy ? (
+                      <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
                       <IconCheck size={13} color={colors.white} />
-                      <Text style={[styles.actionText, { color: colors.white }]}>Approve</Text>
-                    </Pressable>
-                  </View>
-                )}
-                
-                {state && (
-                  <Text style={[styles.stateText, state === 'approved' ? styles.stateApproved : styles.stateDeclined]}>
-                    {state === 'approved' ? '✓ Approved · Added to roster' : '× Declined'}
-                  </Text>
-                )}
+                    )}
+                    <Text style={[styles.actionText, { color: colors.white }]}>Approve</Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
           );
@@ -317,6 +567,20 @@ function RequestsTab({ requests, isOrganizer }: { requests: JoinRequest[]; isOrg
       </View>
     </View>
   );
+}
+
+function relativeShort(iso?: string): string {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const diff = Math.max(0, Date.now() - t);
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'now';
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  return `${d}d`;
 }
 
 function QATab() {
@@ -345,6 +609,10 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.paper,
+  },
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scroll: {
     flex: 1,
@@ -708,10 +976,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  requestCardProcessed: {
-    backgroundColor: colors.n100,
-    opacity: 0.6,
-  },
   requestContent: {
     flex: 1,
     minWidth: 0,
@@ -779,19 +1043,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.ink,
     fontFamily: fonts.sans,
-  },
-  stateText: {
-    marginTop: 10,
-    fontFamily: fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  stateApproved: {
-    color: colors.ink,
-  },
-  stateDeclined: {
-    color: colors.n500,
   },
 
   // Q&A

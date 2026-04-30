@@ -25,7 +25,11 @@ const ExploreScreen = React.memo(({ onOpenRide, onTabChange, onCreate }: Explore
   const handleTrackPress = useCallback(() => onTabChange('maps'), [onTabChange]);
   const handleFeaturedPress = useCallback(() => onOpenRide(DEMO_FEATURED), [onOpenRide]);
   // const handleRidePress = useCallback((ride: Ride) => () => onOpenRide(ride), [onOpenRide]);
-  const handleRidePress = () => router.push("/tripDetailsScreen");
+  const handleRidePress = (trip: any) => () =>
+    router.push({
+      pathname: "/tripDetailsScreen",
+      params: { trip: JSON.stringify(trip) },
+    });
 
 
   const [userCity, setUserCity] = useState<string | null>(null);
@@ -114,10 +118,12 @@ const ExploreScreen = React.memo(({ onOpenRide, onTabChange, onCreate }: Explore
         </View>
 
         <View style={styles.list}>
-          {recommendedResponse?.trips?.map((r, i) => (
-            // <RideRow key={r.id} r={r} onPress={handleRidePress(r)} index={i} />
-            <RideRow key={r.id} r={r} onPress={handleRidePress} index={i} />
-          ))}
+          {recommendedResponse?.trips?.map((r: any, i: number) => {
+            const tripId = r._id ?? r.id;
+            return (
+              <RideRow key={tripId} r={r} onPress={handleRidePress(r)} index={i} />
+            );
+          })}
         </View>
       </ScrollView>
 

@@ -289,10 +289,13 @@ export function useRequestToJoinTrip() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (tripId: string) => {
+    mutationFn: async (input: string | { tripId: string; message?: string }) => {
+      const tripId = typeof input === 'string' ? input : input.tripId;
+      const message = typeof input === 'string' ? undefined : input.message;
       try {
         const response = await apiClient.post<{ message: string }>(
-          endpoints.trips.join(tripId)
+          endpoints.trips.join(tripId),
+          message ? { message } : undefined,
         );
         return { tripId, ...response.data };
       } catch (error) {
