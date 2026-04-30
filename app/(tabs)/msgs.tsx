@@ -166,7 +166,7 @@ const MsgsScreen = React.memo(() => {
   const openThread = useCallback(
     (thread: ChatThread) => {
       router.push(
-        `/chat/${thread.id}?recipientId=${thread.id}&recipientName=${encodeURIComponent(thread.title)}`,
+        `/msgs/${thread.id}?recipientId=${thread.id}&recipientName=${encodeURIComponent(thread.title)}`,
       );
     },
     [router],
@@ -175,7 +175,7 @@ const MsgsScreen = React.memo(() => {
   const openUser = useCallback(
     (user: UserSearchResult) => {
       router.push(
-        `/chat/dm?recipientId=${user.id}&recipientName=${encodeURIComponent(user.name)}`,
+        `/msgs/dm?recipientId=${user.id}&recipientName=${encodeURIComponent(user.name)}`,
       );
     },
     [router],
