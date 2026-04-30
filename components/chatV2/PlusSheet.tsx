@@ -10,6 +10,7 @@ interface PlusSheetProps {
   onClose: () => void;
   onPickExpense: () => void;
   onPickPhoto?: () => void;
+  onPickLocation?: () => void;
 }
 
 interface ActionSpec {
@@ -27,7 +28,7 @@ const ACTIONS: ActionSpec[] = [
   { id: 'poll', label: 'Quick poll', hint: 'Stop here or push on?', Icon: IconCheck },
 ];
 
-export const PlusSheet = React.memo(({ visible, onClose, onPickExpense, onPickPhoto }: PlusSheetProps) => (
+export const PlusSheet = React.memo(({ visible, onClose, onPickExpense, onPickPhoto, onPickLocation }: PlusSheetProps) => (
   <BottomSheet visible={visible} onClose={onClose} snapPoints={['42%']}>
     <View style={styles.container}>
       <Kicker style={styles.kicker}>Share to pack</Kicker>
@@ -37,6 +38,7 @@ export const PlusSheet = React.memo(({ visible, onClose, onPickExpense, onPickPh
           const handlePress = () => {
             if (a.id === 'expense') onPickExpense();
             else if (a.id === 'photo') onPickPhoto?.();
+            else if (a.id === 'location') onPickLocation?.();
             else onClose();
           };
           return (

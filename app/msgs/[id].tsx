@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
@@ -370,6 +371,44 @@ const ChatThreadV2Screen = React.memo(() => {
       setSelectedImages((prev) => [...prev, ...picked]);
     }
   }, []);
+  const handlePickLocation = useCallback(async () => {
+    setSheet(null);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude, longitude } = pos.coords;
+      let placeLabel = '';
+      try {
+        const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+        const r = results?.[0];
+        if (r) {
+          placeLabel = [r.name, r.city || r.subregion, r.region]
+            .filter(Boolean)
+            .join(', ');
+        }
+      } catch {}
+      const mapsUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
+      const content = placeLabel ? `Location: ${placeLabel}\n${mapsUrl}` : `Location: ${mapsUrl}`;
+
+      if (isPendingDM && recipientId) {
+        const response = await sendDM.mutateAsync({
+          recipientId,
+          data: { content },
+        });
+        const realGroupId =
+          (response as any)?.group ?? (response as any)?.data?.groupId;
+        if (realGroupId) router.setParams({ id: realGroupId });
+        return;
+      }
+      if (!groupId) return;
+      await sendGroup.mutateAsync({ groupId, data: { content } });
+    } catch (err) {
+      console.warn('[ChatThreadV2] Share location failed:', err);
+    }
+  }, [isPendingDM, recipientId, groupId, sendDM, sendGroup, router]);
   const handleRemoveAttachment = useCallback((idx: number) => {
     setSelectedImages((prev) => prev.filter((_, i) => i !== idx));
   }, []);
@@ -675,6 +714,7 @@ const ChatThreadV2Screen = React.memo(() => {
         onClose={closeSheet}
         onPickExpense={handlePickExpense}
         onPickPhoto={handlePickPhoto}
+        onPickLocation={handlePickLocation}
       />
       <ExpenseSheet
         visible={sheet === 'expense'}
