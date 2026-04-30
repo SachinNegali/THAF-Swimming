@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
+import ImageUploadThumbnail from '../../components/chat/ImageUploadThumbnail';
 import { colors, fonts } from '../../theme';
 import { ChatMessage } from '../../types';
 import { Avatar } from '../core/Avatar';
 import { Kicker } from '../core/Kicker';
+import { MediaViewer } from './MediaViewer';
 
 interface MessageBubbleProps {
   m: ChatMessage;
@@ -14,6 +16,9 @@ const LIVE_COLOR = '#ff4444';
 const AMBER = '#D4A017';
 
 export const MessageBubble = React.memo(({ m }: MessageBubbleProps) => {
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const closeViewer = useCallback(() => setViewerIndex(null), []);
+
   if (m.kind === 'system') {
     return (
       <View style={styles.systemRow}>
@@ -49,11 +54,42 @@ export const MessageBubble = React.memo(({ m }: MessageBubbleProps) => {
 
         {m.kind === 'image' && (
           <View style={styles.imageCard}>
-            <View style={styles.imagePlaceholder}>
-              <Kicker style={styles.imageKicker}>{m.filename || 'IMG.HEIC'}</Kicker>
-            </View>
+            {m.images && m.images.length > 0 ? (
+              <View style={styles.imageGrid}>
+                {m.images.map((img, idx) => (
+                  <ImageUploadThumbnail
+                    key={img.imageId}
+                    imageId={img.imageId}
+                    serverStatus={img.serverStatus}
+                    thumbnailUrl={img.thumbnailUrl}
+                    optimizedUrl={img.optimizedUrl}
+                    width={img.width}
+                    height={img.height}
+                    mediaType={img.mediaType}
+                    localUri={img.localUri ?? null}
+                    localStatus={img.localStatus}
+                    localError={img.localError ?? null}
+                    compact={m.images!.length > 1}
+                    onPress={() => setViewerIndex(idx)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Kicker style={styles.imageKicker}>{m.filename || 'IMG.HEIC'}</Kicker>
+              </View>
+            )}
             {m.caption && <Text style={styles.imageCaption}>{m.caption}</Text>}
           </View>
+        )}
+
+        {m.kind === 'image' && m.images && viewerIndex !== null && (
+          <MediaViewer
+            visible
+            attachments={m.images}
+            initialIndex={viewerIndex}
+            onClose={closeViewer}
+          />
         )}
 
         {m.kind === 'expense' && (
@@ -201,6 +237,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.n200,
     backgroundColor: colors.white,
+  },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    padding: 4,
   },
   imagePlaceholder: {
     aspectRatio: 4 / 3,

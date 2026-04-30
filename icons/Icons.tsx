@@ -64,6 +64,15 @@ export const IconX = ({ size = 14, color = colors.ink }: { size?: number; color?
   </Svg>
 );
 
+// Download / Save to library
+export const IconDownload = ({ size = 16, color = colors.ink }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <Path d="m7 10 5 5 5-5" />
+    <Path d="M12 15V3" />
+  </Svg>
+);
+
 // Sliders / Filter
 export const IconSliders = ({ size = 20, color = colors.white }: { size?: number; color?: string }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

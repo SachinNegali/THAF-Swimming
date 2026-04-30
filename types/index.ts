@@ -255,7 +255,16 @@ export interface ChatThread {
 export type ChatMessage =
   | { kind: 'system'; text: string; time: string }
   | { kind: 'msg'; from: string; tone?: number; me?: boolean; text: string; time: string }
-  | { kind: 'image'; from: string; tone?: number; me?: boolean; caption?: string; time: string; filename?: string }
+  | {
+      kind: 'image';
+      from: string;
+      tone?: number;
+      me?: boolean;
+      caption?: string;
+      time: string;
+      filename?: string;
+      images?: import('./chat').ImageAttachment[];
+    }
   | {
       kind: 'expense';
       from: string;

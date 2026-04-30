@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -28,11 +28,21 @@ import {
   useSendGroupMessage,
 } from '../../hooks/api/useChats';
 import { useCreateExpense, useExpenses } from '../../hooks/api/useExpenses';
+import {
+  pickImages,
+  prepareImages,
+  startImageUploads,
+  type SelectedImage,
+} from '../../hooks/useMediaUpload';
+import { queryKeys } from '../../lib/react-query/queryClient';
+import { useQueryClient } from '@tanstack/react-query';
 import { IconBack, IconMore } from '../../icons/Icons';
 import { selectUser } from '../../store/selectors';
+import { getUpload, getUploadSnapshot, subscribeUploadStore } from '../../stores/uploadStore';
 import { colors, fonts } from '../../theme';
-import type { Message } from '../../types/api';
 import type { ChatExpense, ChatExpenseStatus, ChatMember, ChatMessage, ChatTabId } from '../../types';
+import type { Message, MessageImageEntry, PaginatedResponse } from '../../types/api';
+import type { ImageAttachment } from '../../types/chat';
 import type { Expense } from '../../types/expenses';
 
 const ME_ID = 'you';
@@ -91,7 +101,35 @@ function mapMessage(
   }
 
   if (msg.type === 'image') {
-    const first = msg.metadata?.images?.[0];
+    const serverImages = msg.metadata?.images ?? [];
+    const imageIds =
+      serverImages.length > 0
+        ? serverImages.map((i) => i.imageId)
+        : msg.metadata?.imageIds ?? [];
+
+    const images: ImageAttachment[] = imageIds.map((imageId) => {
+      const server = serverImages.find((i) => i.imageId === imageId);
+      const local = getUpload(imageId);
+      const mimeType = server?.mimeType ?? local?.mimeType;
+      const mediaType =
+        server?.mediaType ??
+        (mimeType?.startsWith('video/') ? 'video' : 'image');
+      return {
+        imageId,
+        serverStatus: server?.status ?? 'pending',
+        thumbnailUrl: server?.thumbnailUrl ?? null,
+        optimizedUrl: server?.optimizedUrl ?? null,
+        width: server?.width ?? null,
+        height: server?.height ?? null,
+        mediaType,
+        mimeType,
+        localUri: local?.localUri ?? null,
+        localStatus: local?.status,
+        localError: local?.error ?? null,
+      };
+    });
+
+    const first = images[0];
     return {
       kind: 'image',
       from,
@@ -100,6 +138,7 @@ function mapMessage(
       caption: msg.content || undefined,
       filename: first?.imageId ? `IMG · ${first.imageId.slice(0, 6)}` : 'IMG',
       time,
+      images,
     };
   }
 
@@ -137,6 +176,9 @@ const ChatThreadV2Screen = React.memo(() => {
   const currentUser = useSelector(selectUser);
   const currentUserId = currentUser?._id ?? '';
 
+  // Re-render on upload progress / status updates so image bubbles refresh.
+  const _uploadSnapshot = useSyncExternalStore(subscribeUploadStore, getUploadSnapshot);
+
   const { data: existingDM } = useFindDM(recipientId ?? '', isPendingDM);
 
   const { data: group, isLoading: groupLoading } = useGroup(
@@ -154,6 +196,7 @@ const ChatThreadV2Screen = React.memo(() => {
 
   const sendGroup = useSendGroupMessage();
   const sendDM = useSendDMMessage();
+  const qc = useQueryClient();
 
   // If a real DM resolves, swap the URL param to the canonical group id.
   useEffect(() => {
@@ -209,7 +252,8 @@ const ChatThreadV2Screen = React.memo(() => {
     return flatMessages
       .map((m) => mapMessage(m, currentUserId, memberInfo))
       .filter((m): m is ChatMessage => m !== null);
-  }, [flatMessages, currentUserId, memberInfo]);
+    // _uploadSnapshot triggers recalc when upload records change (progress, status, etc.)
+  }, [flatMessages, currentUserId, memberInfo, _uploadSnapshot]);
 
   const mediaCount = useMemo(
     () =>
@@ -299,53 +343,143 @@ const ChatThreadV2Screen = React.memo(() => {
   // ─── Tabs / sheet state ────────────────────────────────
   const [tab, setTab] = useState<ChatTabId>('messages');
   const [sheet, setSheet] = useState<'plus' | 'expense' | null>(null);
+  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
 
   const handleBack = useCallback(() => {
     if (router.canGoBack()) router.back();
   }, [router]);
 
   const handlePlus = useCallback(() => setSheet('plus'), []);
+
+  // Closing PlusSheet (sheet state change) fires its onDismiss → closeSheet,
+  // which would clobber a freshly-set 'expense'. Wait for the dismiss animation
+  // before opening ExpenseSheet so the state isn't reset out from under it.
   const handlePickExpense = useCallback(() => {
-    if (!expensesEnabled) {
-      setSheet(null);
-      return;
-    }
-    setSheet('expense');
+    setSheet(null);
+    if (!expensesEnabled) return;
+    setTimeout(() => setSheet('expense'), 320);
   }, [expensesEnabled]);
   const handleAddExpense = useCallback(() => {
     if (!expensesEnabled) return;
     setSheet('expense');
   }, [expensesEnabled]);
+  const handlePickPhoto = useCallback(async () => {
+    setSheet(null);
+    const picked = await pickImages();
+    if (picked.length > 0) {
+      setSelectedImages((prev) => [...prev, ...picked]);
+    }
+  }, []);
+  const handleRemoveAttachment = useCallback((idx: number) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
   const closeSheet = useCallback(() => setSheet(null), []);
 
-  // ─── Send text ──────────────────────────────────────────
+  // ─── Send text + images ────────────────────────────────
+  const sendImagesMessage = useCallback(
+    async (chatId: string, images: SelectedImage[], caption: string) => {
+      const prepared = await prepareImages(images);
+      const imageIds = prepared.map((p) => p.imageId);
+      const response = await sendGroup.mutateAsync({
+        groupId: chatId,
+        data: {
+          content: caption,
+          type: 'image',
+          metadata: { imageIds },
+        },
+      });
+      const realMsg: Message | undefined =
+        (response as any)?.data ?? (response as any);
+      const serverMessageId = realMsg?._id;
+      if (!serverMessageId) {
+        console.warn('[ChatThreadV2] Could not resolve server messageId from send response');
+        return;
+      }
+
+      // If the server didn't echo metadata.images, inject pending placeholders
+      // so the sender's bubble renders something while uploads are in flight.
+      if (!realMsg!.metadata?.images) {
+        const pendingImages: MessageImageEntry[] = imageIds.map((id) => ({
+          imageId: id,
+          status: 'pending',
+          thumbnailUrl: null,
+          optimizedUrl: null,
+          width: null,
+          height: null,
+        }));
+        type MessagesCache = { pages: PaginatedResponse<Message>[]; pageParams: unknown[] };
+        qc.setQueryData<MessagesCache>(
+          queryKeys.groups.messages(chatId),
+          (old) => {
+            if (!old?.pages?.length) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                data: page.data.map((m) =>
+                  m._id === serverMessageId
+                    ? {
+                        ...m,
+                        metadata: {
+                          ...(m.metadata ?? {}),
+                          imageIds,
+                          images: pendingImages,
+                        },
+                      }
+                    : m,
+                ),
+              })),
+            };
+          },
+        );
+      }
+
+      startImageUploads(chatId, serverMessageId, prepared);
+    },
+    [sendGroup, qc],
+  );
+
   const handleSend = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      const imagesToSend = [...selectedImages];
+      const hasImages = imagesToSend.length > 0;
+      if (!trimmed && !hasImages) return;
+
+      setSelectedImages([]);
+
       try {
         if (isPendingDM && recipientId) {
           const response = await sendDM.mutateAsync({
             recipientId,
-            data: { content: trimmed },
+            data: { content: trimmed || '' },
           });
           const realGroupId =
             (response as any)?.group ?? (response as any)?.data?.groupId;
           if (realGroupId) {
             router.setParams({ id: realGroupId });
+            if (hasImages) {
+              await sendImagesMessage(realGroupId, imagesToSend, '');
+            }
           }
           return;
         }
         if (!groupId) return;
-        await sendGroup.mutateAsync({
-          groupId,
-          data: { content: trimmed },
-        });
+        if (trimmed) {
+          await sendGroup.mutateAsync({
+            groupId,
+            data: { content: trimmed },
+          });
+        }
+        if (hasImages) {
+          await sendImagesMessage(groupId, imagesToSend, '');
+        }
       } catch (err) {
         console.warn('[ChatThreadV2] Send failed:', err);
+        setSelectedImages(imagesToSend);
       }
     },
-    [groupId, isPendingDM, recipientId, sendDM, sendGroup, router],
+    [groupId, isPendingDM, recipientId, sendDM, sendGroup, router, selectedImages, sendImagesMessage],
   );
 
   // ─── Create expense ─────────────────────────────────────
@@ -526,13 +660,21 @@ const ChatThreadV2Screen = React.memo(() => {
           </ScrollView>
         )}
 
-        {tab === 'messages' && <Composer onPlus={handlePlus} onSend={handleSend} />}
+        {tab === 'messages' && (
+          <Composer
+            onPlus={handlePlus}
+            onSend={handleSend}
+            attachments={selectedImages.map((img) => ({ uri: img.uri }))}
+            onRemoveAttachment={handleRemoveAttachment}
+          />
+        )}
       </KeyboardAvoidingView>
 
       <PlusSheet
         visible={sheet === 'plus'}
         onClose={closeSheet}
         onPickExpense={handlePickExpense}
+        onPickPhoto={handlePickPhoto}
       />
       <ExpenseSheet
         visible={sheet === 'expense'}
@@ -622,7 +764,8 @@ const styles = StyleSheet.create({
     color: colors.n500,
     fontFamily: fonts.sans,
     textAlign: 'center',
-  },
+
+},
 });
 
 export default ChatThreadV2Screen;
