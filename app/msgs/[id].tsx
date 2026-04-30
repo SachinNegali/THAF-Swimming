@@ -343,36 +343,38 @@ const ChatThreadV2Screen = React.memo(() => {
 
   // ─── Tabs / sheet state ────────────────────────────────
   const [tab, setTab] = useState<ChatTabId>('messages');
-  const [sheet, setSheet] = useState<'plus' | 'expense' | null>(null);
+  const [plusVisible, setPlusVisible] = useState(false);
+  const [expenseVisible, setExpenseVisible] = useState(false);
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
 
   const handleBack = useCallback(() => {
     if (router.canGoBack()) router.back();
   }, [router]);
 
-  const handlePlus = useCallback(() => setSheet('plus'), []);
+  const handlePlus = useCallback(() => setPlusVisible(true), []);
 
-  // Closing PlusSheet (sheet state change) fires its onDismiss → closeSheet,
-  // which would clobber a freshly-set 'expense'. Wait for the dismiss animation
-  // before opening ExpenseSheet so the state isn't reset out from under it.
+  // PlusSheet's onDismiss fires after its close animation finishes, which can
+  // land after ExpenseSheet has already been opened. Keeping the two sheets on
+  // independent visibility flags ensures PlusSheet's late dismiss can't clobber
+  // ExpenseSheet's visible state.
   const handlePickExpense = useCallback(() => {
-    setSheet(null);
+    setPlusVisible(false);
     if (!expensesEnabled) return;
-    setTimeout(() => setSheet('expense'), 320);
+    setTimeout(() => setExpenseVisible(true), 320);
   }, [expensesEnabled]);
   const handleAddExpense = useCallback(() => {
     if (!expensesEnabled) return;
-    setSheet('expense');
+    setExpenseVisible(true);
   }, [expensesEnabled]);
   const handlePickPhoto = useCallback(async () => {
-    setSheet(null);
+    setPlusVisible(false);
     const picked = await pickImages();
     if (picked.length > 0) {
       setSelectedImages((prev) => [...prev, ...picked]);
     }
   }, []);
   const handlePickLocation = useCallback(async () => {
-    setSheet(null);
+    setPlusVisible(false);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
@@ -412,7 +414,8 @@ const ChatThreadV2Screen = React.memo(() => {
   const handleRemoveAttachment = useCallback((idx: number) => {
     setSelectedImages((prev) => prev.filter((_, i) => i !== idx));
   }, []);
-  const closeSheet = useCallback(() => setSheet(null), []);
+  const closePlus = useCallback(() => setPlusVisible(false), []);
+  const closeExpense = useCallback(() => setExpenseVisible(false), []);
 
   // ─── Send text + images ────────────────────────────────
   const sendImagesMessage = useCallback(
@@ -710,15 +713,15 @@ const ChatThreadV2Screen = React.memo(() => {
       </KeyboardAvoidingView>
 
       <PlusSheet
-        visible={sheet === 'plus'}
-        onClose={closeSheet}
+        visible={plusVisible}
+        onClose={closePlus}
         onPickExpense={handlePickExpense}
         onPickPhoto={handlePickPhoto}
         onPickLocation={handlePickLocation}
       />
       <ExpenseSheet
-        visible={sheet === 'expense'}
-        onClose={closeSheet}
+        visible={expenseVisible}
+        onClose={closeExpense}
         members={sheetMembers}
         onSubmit={handleExpenseSubmit}
       />
